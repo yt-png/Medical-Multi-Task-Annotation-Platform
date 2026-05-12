@@ -10,7 +10,6 @@ from .constants import (
     RESOLUTION_LEVELS,
     CONTEXT_SOURCES_CAPTION,
     MASTER_CENTER_STATUS,
-    MASTER_CENTER_STATUS_PRE_REVIEW_FINAL,
     MASTER_RESULT_STATUS,
     RECEIVE_VALIDATION_STATUS,
     RECEIVE_IMPORT_STATUS,
@@ -23,24 +22,37 @@ from .constants import (
 )
 
 from .path_utils import is_relative_posix_path
+from .hash_utils import compute_sample_id_hash, compute_file_sha256
 
 from .schemas import (
     TASK_ITEM_FIELDS,
+    TASK_ITEM_BASE_REQUIRED_FIELDS,
     TASK_PACKAGE_META_FIELDS,
+    TASK_PACKAGE_META_REQUIRED_FIELDS,
     RESULT_ITEM_FIELDS,
+    RESULT_ITEM_REQUIRED_FIELDS,
     SEGMENTATION_RESULT_FIELDS,
     DETECTION_RESULT_FIELDS,
     DETECTION_BOX_FIELDS,
     CAPTION_RESULT_FIELDS,
     RESULT_PACKAGE_META_FIELDS,
+    RESULT_PACKAGE_META_REQUIRED_FIELDS,
     MASTER_TOP_FIELDS,
+    MASTER_TOP_REQUIRED_FIELDS,
     MASTER_TASK_FIELDS,
+    MASTER_TASK_REQUIRED_FIELDS,
     RECEIVE_TOP_FIELDS,
+    RECEIVE_TOP_REQUIRED_FIELDS,
     RECEIVE_RECORD_FIELDS,
+    RECEIVE_RECORD_REQUIRED_FIELDS,
     REVIEW_TOP_FIELDS,
+    REVIEW_TOP_REQUIRED_FIELDS,
     REVIEW_RECORD_FIELDS,
+    REVIEW_RECORD_REQUIRED_FIELDS,
     REVIEW_ISSUE_FIELDS,
+    REVIEW_ISSUE_REQUIRED_FIELDS,
     FINAL_ITEM_FIELDS,
+    FINAL_ITEM_REQUIRED_FIELDS,
     FINAL_SEGMENTATION_FIELDS,
     FINAL_DETECTION_FIELDS,
     FINAL_CAPTION_FIELDS,
@@ -110,15 +122,20 @@ def validate_task_item(item: dict) -> None:
     require_object(item, "tasks.json item")
     validate_no_extra_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
     validate_no_forbidden_fields(item, "tasks.json item")
-    TASK_ITEM_REQUIRED_FIELDS = TASK_ITEM_FIELDS - {"ui_mode"}
-    validate_required_fields(item, TASK_ITEM_REQUIRED_FIELDS, "tasks.json item")
+    validate_required_fields(item, TASK_ITEM_BASE_REQUIRED_FIELDS, "tasks.json item")
 
-    if item.get("ui_mode") is not None:
+    if "ui_mode" in item:
         require_string(item["ui_mode"], "tasks.json.ui_mode")
-        if item["ui_mode"] not in TASK_TYPES:
-            raise ValueError("tasks.json.ui_mode invalid")
 
-    for field in ["sample_id", "case_id", "check_category", "image_id", "task_type", "resolution_level", "schema_version"]:
+    for field in [
+        "sample_id",
+        "case_id",
+        "check_category",
+        "image_id",
+        "task_type",
+        "resolution_level",
+        "schema_version",
+    ]:
         require_string(item[field], f"tasks.json.{field}")
 
     if item["task_type"] not in TASK_TYPES:
@@ -130,11 +147,12 @@ def validate_task_item(item: dict) -> None:
     if item["resolution_level"] not in RESOLUTION_LEVELS:
         raise ValueError("tasks.json.resolution_level invalid")
 
+    require_string(item["image"], "tasks.json.image")
     if not is_relative_posix_path(item["image"]):
         raise ValueError("tasks.json.image must be relative POSIX path")
 
-    if item["diagnosis_raw"] == "":
-        raise ValueError("tasks.json.diagnosis_raw must not be empty string")
+    if item["diagnosis_raw"] is not None:
+        require_string(item["diagnosis_raw"], "tasks.json.diagnosis_raw")
 
     task_type = item["task_type"]
 
@@ -142,54 +160,55 @@ def validate_task_item(item: dict) -> None:
         require_string(item["mask"], "tasks.json.mask")
         if not is_relative_posix_path(item["mask"]):
             raise ValueError("segmentation mask must be relative POSIX path")
+
         if item["prompt_version"] is not None:
             raise ValueError("segmentation prompt_version must be null")
+
         if item["context_sources"] is not None:
             raise ValueError("segmentation context_sources must be null")
 
     elif task_type == "detection":
         if item["mask"] is not None:
             raise ValueError("detection mask must be null")
+
         if item["prompt_version"] is not None:
             raise ValueError("detection prompt_version must be null")
+
         if item["context_sources"] is not None:
             raise ValueError("detection context_sources must be null")
 
     elif task_type == "caption":
         if item["mask"] is not None:
             raise ValueError("caption mask must be null")
+
         require_string(item["diagnosis_raw"], "caption diagnosis_raw")
         require_string(item["prompt_version"], "caption prompt_version")
+
         if item["context_sources"] != CONTEXT_SOURCES_CAPTION:
             raise ValueError("caption context_sources must equal ['image', 'diagnosis_raw']")
-
-
-def validate_tasks_json(tasks: list) -> None:
-    require_array(tasks, "tasks.json")
-
-    if not tasks:
-        raise ValueError("tasks.json must not be empty")
-
-    seen = set()
-    task_type_set = set()
-
-    for item in tasks:
-        validate_task_item(item)
-        key = (item["sample_id"], item["task_type"])
-        if key in seen:
-            raise ValueError(f"duplicate sample_id + task_type: {key}")
-        seen.add(key)
-        task_type_set.add(item["task_type"])
-
-    if len(task_type_set) != 1:
-        raise ValueError("one tasks.json must contain only one task_type")
-
 
 def validate_task_package_meta(meta: dict) -> None:
     require_object(meta, "task_package/meta.json")
     validate_no_extra_fields(meta, TASK_PACKAGE_META_FIELDS, "task_package/meta.json")
     validate_no_forbidden_fields(meta, "task_package/meta.json")
-    validate_required_fields(meta, TASK_PACKAGE_META_FIELDS, "task_package/meta.json")
+    validate_required_fields(meta, TASK_PACKAGE_META_REQUIRED_FIELDS, "task_package/meta.json")
+
+    for field in [
+        "task_id",
+        "task_type",
+        "project_id",
+        "distribution_batch",
+        "assigned_to",
+        "assigned_to_snapshot",
+        "schema_version",
+        "config_version",
+        "script_version",
+        "sample_id_hash",
+        "created_at",
+        "created_by",
+        "source_batch",
+    ]:
+        require_string(meta[field], f"task_package/meta.{field}")
 
     if meta["project_id"] != PROJECT_ID:
         raise ValueError("task_package/meta.project_id invalid")
@@ -202,6 +221,9 @@ def validate_task_package_meta(meta: dict) -> None:
 
     if not isinstance(meta["total_samples"], int) or meta["total_samples"] < 0:
         raise ValueError("task_package/meta.total_samples must be non-negative int")
+
+    if not meta["sample_id_hash"].startswith("sha256:"):
+        raise ValueError("task_package/meta.sample_id_hash must start with sha256:")
 
     require_bool(meta["has_mask"], "task_package/meta.has_mask")
     require_bool(meta["is_rework"], "task_package/meta.is_rework")
@@ -226,7 +248,7 @@ def validate_result_item(item: dict) -> None:
     require_object(item, "results.json item")
     validate_no_extra_fields(item, RESULT_ITEM_FIELDS, "results.json item")
     validate_no_forbidden_fields(item, "results.json item")
-    validate_required_fields(item, RESULT_ITEM_FIELDS, "results.json item")
+    validate_required_fields(item, RESULT_ITEM_REQUIRED_FIELDS, "results.json item")
 
     for field in ["sample_id", "case_id", "module", "operator", "timestamp", "task_id", "version", "schema_version"]:
         require_string(item[field], f"results.json.{field}")
@@ -305,7 +327,26 @@ def validate_result_package_meta(meta: dict) -> None:
     require_object(meta, "result_package/meta.json")
     validate_no_extra_fields(meta, RESULT_PACKAGE_META_FIELDS, "result_package/meta.json")
     validate_no_forbidden_fields(meta, "result_package/meta.json")
-    validate_required_fields(meta, RESULT_PACKAGE_META_FIELDS, "result_package/meta.json")
+    validate_required_fields(meta, RESULT_PACKAGE_META_REQUIRED_FIELDS, "result_package/meta.json")
+
+    for field in [
+        "result_package_id",
+        "task_id",
+        "task_type",
+        "module",
+        "operator",
+        "assigned_to",
+        "assigned_to_snapshot",
+        "schema_version",
+        "config_version",
+        "script_version",
+        "export_version",
+        "sample_id_hash",
+        "export_time",
+        "exported_by",
+        "results_json_hash",
+    ]:
+        require_string(meta[field], f"result_package/meta.{field}")
 
     if meta["task_type"] not in TASK_TYPES:
         raise ValueError("result_package/meta.task_type invalid")
@@ -328,15 +369,24 @@ def validate_result_package_meta(meta: dict) -> None:
     if len(meta["invalid_sample_ids"]) != meta["invalid_count"]:
         raise ValueError("invalid_sample_ids length must equal invalid_count")
 
+    for sample_id in meta["invalid_sample_ids"]:
+        require_string(sample_id, "invalid_sample_ids item")
+
+    if not meta["sample_id_hash"].startswith("sha256:"):
+        raise ValueError("result_package/meta.sample_id_hash must start with sha256:")
+
+    if not meta["results_json_hash"].startswith("sha256:"):
+        raise ValueError("result_package/meta.results_json_hash must start with sha256:")
+
     if not isinstance(meta["tool_versions"], dict):
         raise ValueError("tool_versions must be object")
 
 
-def validate_master_manifest(manifest: dict, allow_completed: bool = False) -> None:
+def validate_master_manifest(manifest: dict) -> None:
     require_object(manifest, "Master_Manifest.json")
     validate_no_extra_fields(manifest, MASTER_TOP_FIELDS, "Master_Manifest.json")
     validate_no_forbidden_fields(manifest, "Master_Manifest.json")
-    validate_required_fields(manifest, MASTER_TOP_FIELDS, "Master_Manifest.json")
+    validate_required_fields(manifest, MASTER_TOP_REQUIRED_FIELDS, "Master_Manifest.json")
 
     if manifest["manifest_version"] != MANIFEST_VERSION:
         raise ValueError("Master_Manifest.manifest_version invalid")
@@ -344,9 +394,10 @@ def validate_master_manifest(manifest: dict, allow_completed: bool = False) -> N
     if manifest["project_id"] != PROJECT_ID:
         raise ValueError("Master_Manifest.project_id invalid")
 
+    require_string(manifest["distribution_batch"], "Master_Manifest.distribution_batch")
+    require_string(manifest["created_at"], "Master_Manifest.created_at")
+    require_string(manifest["updated_at"], "Master_Manifest.updated_at")
     require_array(manifest["tasks"], "Master_Manifest.tasks")
-
-    allowed_center_status = MASTER_CENTER_STATUS if allow_completed else MASTER_CENTER_STATUS_PRE_REVIEW_FINAL
 
     seen_task_ids = set()
 
@@ -354,20 +405,38 @@ def validate_master_manifest(manifest: dict, allow_completed: bool = False) -> N
         require_object(task, "Master_Manifest task")
         validate_no_extra_fields(task, MASTER_TASK_FIELDS, "Master_Manifest task")
         validate_no_forbidden_fields(task, "Master_Manifest task")
-        validate_required_fields(task, MASTER_TASK_FIELDS, "Master_Manifest task")
+        validate_required_fields(task, MASTER_TASK_REQUIRED_FIELDS, "Master_Manifest task")
 
         if task["task_id"] in seen_task_ids:
             raise ValueError(f"duplicate task_id in Master: {task['task_id']}")
         seen_task_ids.add(task["task_id"])
 
+        for field in [
+            "task_id",
+            "task_type",
+            "assigned_to",
+            "assigned_to_snapshot",
+            "sample_id_hash",
+            "schema_version",
+            "config_version",
+            "script_version",
+            "created_at",
+            "center_status",
+            "result_status",
+        ]:
+            require_string(task[field], f"Master task.{field}")
+
         if task["task_type"] not in TASK_TYPES:
             raise ValueError("Master task_type invalid")
+
+        if not isinstance(task["sample_count"], int) or task["sample_count"] < 0:
+            raise ValueError("Master sample_count must be non-negative int")
 
         if task["schema_version"] != SCHEMA_VERSION:
             raise ValueError("Master task schema_version invalid")
 
-        if task["center_status"] not in allowed_center_status:
-            raise ValueError("Master center_status invalid in current phase")
+        if task["center_status"] not in MASTER_CENTER_STATUS:
+            raise ValueError("Master center_status invalid")
 
         if task["result_status"] not in MASTER_RESULT_STATUS:
             raise ValueError("Master result_status invalid")
@@ -393,7 +462,7 @@ def validate_receive_registry(registry: dict) -> None:
     require_object(registry, "Receive_Registry.json")
     validate_no_extra_fields(registry, RECEIVE_TOP_FIELDS, "Receive_Registry.json")
     validate_no_forbidden_fields(registry, "Receive_Registry.json")
-    validate_required_fields(registry, RECEIVE_TOP_FIELDS, "Receive_Registry.json")
+    validate_required_fields(registry, RECEIVE_TOP_REQUIRED_FIELDS, "Receive_Registry.json")
 
     if registry["registry_version"] != REGISTRY_VERSION:
         raise ValueError("Receive.registry_version invalid")
@@ -407,7 +476,7 @@ def validate_receive_registry(registry: dict) -> None:
         require_object(record, "Receive record")
         validate_no_extra_fields(record, RECEIVE_RECORD_FIELDS, "Receive record")
         validate_no_forbidden_fields(record, "Receive record")
-        validate_required_fields(record, RECEIVE_RECORD_FIELDS, "Receive record")
+        validate_required_fields(record, RECEIVE_RECORD_REQUIRED_FIELDS, "Receive record")
 
         if record["task_type"] not in TASK_TYPES:
             raise ValueError("Receive task_type invalid")
@@ -437,7 +506,7 @@ def validate_review_results(review: dict) -> None:
     require_object(review, "review_results.json")
     validate_no_extra_fields(review, REVIEW_TOP_FIELDS, "review_results.json")
     validate_no_forbidden_fields(review, "review_results.json")
-    validate_required_fields(review, REVIEW_TOP_FIELDS, "review_results.json")
+    validate_required_fields(review, REVIEW_TOP_REQUIRED_FIELDS, "review_results.json")
 
     if review["review_version"] != REVIEW_VERSION:
         raise ValueError("review_version invalid")
@@ -445,6 +514,8 @@ def validate_review_results(review: dict) -> None:
     if review["project_id"] != PROJECT_ID:
         raise ValueError("review project_id invalid")
 
+    require_string(review["created_at"], "review.created_at")
+    require_string(review["updated_at"], "review.updated_at")
     require_array(review["records"], "review.records")
 
     seen_sample_ids = set()
@@ -453,7 +524,20 @@ def validate_review_results(review: dict) -> None:
         require_object(record, "review record")
         validate_no_extra_fields(record, REVIEW_RECORD_FIELDS, "review record")
         validate_no_forbidden_fields(record, "review record")
-        validate_required_fields(record, REVIEW_RECORD_FIELDS, "review record")
+        validate_required_fields(record, REVIEW_RECORD_REQUIRED_FIELDS, "review record")
+
+        for field in [
+            "review_id",
+            "sample_id",
+            "case_id",
+            "review_status",
+            "reviewer",
+            "review_time",
+            "merged_path",
+            "review_queue_item_path",
+            "schema_version",
+        ]:
+            require_string(record[field], f"review.{field}")
 
         if record["sample_id"] in seen_sample_ids:
             raise ValueError(f"duplicate sample_id in review_results: {record['sample_id']}")
@@ -465,6 +549,12 @@ def validate_review_results(review: dict) -> None:
         if record["schema_version"] != SCHEMA_VERSION:
             raise ValueError("review schema_version invalid")
 
+        if not is_relative_posix_path(record["merged_path"]):
+            raise ValueError("review.merged_path must be relative POSIX path")
+
+        if not is_relative_posix_path(record["review_queue_item_path"]):
+            raise ValueError("review.review_queue_item_path must be relative POSIX path")
+
         require_object(record["module_checks"], "review.module_checks")
 
         if set(record["module_checks"].keys()) != REVIEW_MODULE_CHECKS:
@@ -474,12 +564,26 @@ def validate_review_results(review: dict) -> None:
             require_bool(value, "module_checks value")
 
         require_array(record["issues"], "review.issues")
+        require_bool(record["rework_required"], "review.rework_required")
         require_array(record["rework_modules"], "review.rework_modules")
+
+        if record["comment"] is not None:
+            require_string(record["comment"], "review.comment")
 
         for issue in record["issues"]:
             require_object(issue, "review issue")
             validate_no_extra_fields(issue, REVIEW_ISSUE_FIELDS, "review issue")
-            validate_required_fields(issue, REVIEW_ISSUE_FIELDS, "review issue")
+            validate_required_fields(issue, REVIEW_ISSUE_REQUIRED_FIELDS, "review issue")
+
+            for field in [
+                "issue_id",
+                "module",
+                "issue_type",
+                "severity",
+                "description",
+                "suggested_action",
+            ]:
+                require_string(issue[field], f"review.issue.{field}")
 
             if issue["module"] not in ISSUE_MODULES:
                 raise ValueError("review issue module invalid")
@@ -518,18 +622,32 @@ def validate_review_results(review: dict) -> None:
             if not record["rework_modules"]:
                 raise ValueError("rework_required must have non-empty rework_modules")
 
-
 def validate_final_item(item: dict) -> None:
     require_object(item, "final.json item")
     validate_no_extra_fields(item, FINAL_ITEM_FIELDS, "final.json item")
     validate_no_forbidden_fields(item, "final.json item")
-    validate_required_fields(item, FINAL_ITEM_FIELDS, "final.json item")
+    validate_required_fields(item, FINAL_ITEM_REQUIRED_FIELDS, "final.json item")
+
+    for field in [
+        "sample_id",
+        "case_id",
+        "check_category",
+        "image_id",
+        "resolution_level",
+        "image",
+        "diagnosis_raw",
+        "schema_version",
+    ]:
+        require_string(item[field], f"final.{field}")
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("final schema_version invalid")
 
     if item["resolution_level"] not in RESOLUTION_LEVELS:
         raise ValueError("final resolution_level invalid")
+
+    if not is_relative_posix_path(item["image"]):
+        raise ValueError("final.image must be relative POSIX path")
 
     downsample = item["downsample"]
     level = item["resolution_level"]
@@ -538,6 +656,7 @@ def validate_final_item(item: dict) -> None:
         require_object(downsample, "final.downsample")
         validate_no_extra_fields(downsample, FINAL_DOWNSAMPLE_FIELDS, "final.downsample")
         validate_required_fields(downsample, FINAL_DOWNSAMPLE_FIELDS, "final.downsample")
+
         for field in ["x2", "x4"]:
             require_string(downsample[field], f"final.downsample.{field}")
             if not is_relative_posix_path(downsample[field]):
@@ -545,14 +664,19 @@ def validate_final_item(item: dict) -> None:
 
     elif level == "M":
         require_object(downsample, "final.downsample")
+
         if "x2" not in downsample:
             raise ValueError("resolution_level M requires final.downsample.x2")
+
         for field in downsample:
             if field not in FINAL_DOWNSAMPLE_FIELDS:
                 raise ValueError("final.downsample contains invalid field")
+
         require_string(downsample["x2"], "final.downsample.x2")
+
         if not is_relative_posix_path(downsample["x2"]):
             raise ValueError("final.downsample.x2 must be relative POSIX path")
+
         if "x4" in downsample:
             require_string(downsample["x4"], "final.downsample.x4")
             if not is_relative_posix_path(downsample["x4"]):
@@ -565,16 +689,12 @@ def validate_final_item(item: dict) -> None:
             require_object(downsample, "final.downsample")
             validate_no_extra_fields(downsample, FINAL_DOWNSAMPLE_DISABLED_FIELDS, "final.downsample")
             validate_required_fields(downsample, FINAL_DOWNSAMPLE_DISABLED_FIELDS, "final.downsample")
+
             if downsample["enabled"] is not False:
                 raise ValueError("resolution_level S downsample.enabled must be false")
+
             if downsample["reason"] != "resolution_level_S":
                 raise ValueError("resolution_level S downsample.reason invalid")
-    
-    require_string(item["image"], "final.image")
-    if not is_relative_posix_path(item["image"]):
-        raise ValueError("final.image must be relative POSIX path")
-
-    require_string(item["diagnosis_raw"], "final.diagnosis_raw")
 
     for obj_name in ["segmentation", "detection", "caption", "source"]:
         require_object(item[obj_name], f"final.{obj_name}")
@@ -583,12 +703,15 @@ def validate_final_item(item: dict) -> None:
     validate_required_fields(item["segmentation"], FINAL_SEGMENTATION_FIELDS, "final.segmentation")
 
     require_string(item["segmentation"]["mask_path"], "final.segmentation.mask_path")
+
     if not is_relative_posix_path(item["segmentation"]["mask_path"]):
-        raise ValueError("final segmentation.mask_path must be relative POSIX path")
+        raise ValueError("final.segmentation.mask_path must be relative POSIX path")
+
     require_array(item["segmentation"]["polygons"], "final.segmentation.polygons")
 
     validate_no_extra_fields(item["detection"], FINAL_DETECTION_FIELDS, "final.detection")
     validate_required_fields(item["detection"], FINAL_DETECTION_FIELDS, "final.detection")
+
     require_array(item["detection"]["boxes"], "final.detection.boxes")
     require_bool(item["detection"]["negative_confirmed"], "final.detection.negative_confirmed")
 
@@ -600,15 +723,16 @@ def validate_final_item(item: dict) -> None:
 
     validate_no_extra_fields(item["caption"], FINAL_CAPTION_FIELDS, "final.caption")
     validate_required_fields(item["caption"], FINAL_CAPTION_FIELDS, "final.caption")
+
     require_string(item["caption"]["reviewed"], "final.caption.reviewed")
     require_string(item["caption"]["generated"], "final.caption.generated")
     require_string(item["caption"]["prompt_version"], "final.caption.prompt_version")
 
     validate_no_extra_fields(item["source"], FINAL_SOURCE_FIELDS, "final.source")
     validate_required_fields(item["source"], FINAL_SOURCE_FIELDS, "final.source")
+
     for field in FINAL_SOURCE_FIELDS:
         require_string(item["source"][field], f"final.source.{field}")
-
 
 def validate_final_json(final: list) -> None:
     require_array(final, "final.json")
@@ -622,3 +746,194 @@ def validate_final_json(final: list) -> None:
             raise ValueError(f"duplicate sample_id in final.json: {item['sample_id']}")
 
         seen_sample_ids.add(item["sample_id"])
+
+def validate_task_package_consistency(tasks: list, meta: dict) -> None:
+    """
+    校验 tasks.json 与 task_package/meta.json 的一致性。
+
+    用于：
+    - 中心拆包后自检
+    - 本地导入前校验
+    - 中心回收时读取原 task_package 复核
+    """
+    validate_tasks_json(tasks)
+    validate_task_package_meta(meta)
+
+    if meta["total_samples"] != len(tasks):
+        raise ValueError(
+            f"task_package/meta.total_samples 与 tasks.json 数量不一致: "
+            f"meta={meta['total_samples']}, tasks={len(tasks)}"
+        )
+
+    task_types = {item["task_type"] for item in tasks}
+    if len(task_types) != 1:
+        raise ValueError("一个 tasks.json 中只能包含一种 task_type")
+
+    task_type = next(iter(task_types))
+
+    if meta["task_type"] != task_type:
+        raise ValueError(
+            f"task_package/meta.task_type 与 tasks.json.task_type 不一致: "
+            f"meta={meta['task_type']}, tasks={task_type}"
+        )
+
+    computed_hash = compute_sample_id_hash([item["sample_id"] for item in tasks])
+    if meta["sample_id_hash"] != computed_hash:
+        raise ValueError(
+            f"task_package/meta.sample_id_hash 不一致: "
+            f"meta={meta['sample_id_hash']}, computed={computed_hash}"
+        )
+
+    if meta["task_type"] == "segmentation":
+        if meta["has_mask"] is not True:
+            raise ValueError("segmentation task_package/meta.has_mask 必须为 true")
+
+        for item in tasks:
+            require_string(item["mask"], "segmentation tasks.json.mask")
+            if not is_relative_posix_path(item["mask"]):
+                raise ValueError("segmentation tasks.json.mask 必须是相对 POSIX 路径")
+
+    if meta["task_type"] in {"detection", "caption"}:
+        if meta["has_mask"] is not False:
+            raise ValueError("detection/caption task_package/meta.has_mask 必须为 false")
+
+        for item in tasks:
+            if item["mask"] is not None:
+                raise ValueError("detection/caption tasks.json.mask 必须为 null")
+
+
+def validate_result_package_consistency(results: list, meta: dict, results_json_path: str | None = None) -> None:
+    """
+    校验 results.json 与 result_package/meta.json 的一致性。
+
+    用于：
+    - 本地导出前校验
+    - 中心回收校验
+    """
+    validate_results_json(results)
+    validate_result_package_meta(meta)
+
+    if meta["module"] != meta["task_type"]:
+        raise ValueError("result_package/meta.module 必须等于 task_type")
+
+    modules = {item["module"] for item in results}
+    if len(modules) > 1:
+        raise ValueError("一个 results.json 中只能包含一种 module")
+
+    if results:
+        module = next(iter(modules))
+
+        if module != meta["module"]:
+            raise ValueError(
+                f"result_package/meta.module 与 results.json.module 不一致: "
+                f"meta={meta['module']}, results={module}"
+            )
+
+    for item in results:
+        if item["task_id"] != meta["task_id"]:
+            raise ValueError(
+                f"results.json.task_id 与 result_package/meta.task_id 不一致: "
+                f"result={item['task_id']}, meta={meta['task_id']}"
+            )
+
+        if item["module"] != meta["module"]:
+            raise ValueError(
+                f"results.json.module 与 result_package/meta.module 不一致: "
+                f"result={item['module']}, meta={meta['module']}"
+            )
+
+        if item["operator"] != meta["operator"]:
+            raise ValueError(
+                f"results.json.operator 与 result_package/meta.operator 不一致: "
+                f"result={item['operator']}, meta={meta['operator']}"
+            )
+
+    if meta["completed_count"] != len(results):
+        raise ValueError(
+            f"result_package/meta.completed_count 与 results.json 数量不一致: "
+            f"meta={meta['completed_count']}, results={len(results)}"
+        )
+
+    sample_ids = [item["sample_id"] for item in results] + list(meta["invalid_sample_ids"])
+    computed_hash = compute_sample_id_hash(sample_ids)
+
+    if meta["sample_id_hash"] != computed_hash:
+        raise ValueError(
+            f"result_package/meta.sample_id_hash 不一致: "
+            f"meta={meta['sample_id_hash']}, computed={computed_hash}"
+        )
+
+    if results_json_path is not None:
+        computed_results_hash = compute_file_sha256(results_json_path)
+
+        if meta["results_json_hash"] != computed_results_hash:
+            raise ValueError(
+                f"result_package/meta.results_json_hash 不一致: "
+                f"meta={meta['results_json_hash']}, computed={computed_results_hash}"
+            )
+
+
+def validate_master_task_matches_task_package(master_task: dict, task_meta: dict) -> None:
+    """
+    校验 Master_Manifest.json 中单条 task 记录与 task_package/meta.json 一致。
+    """
+    for field in [
+        "task_id",
+        "task_type",
+        "assigned_to",
+        "assigned_to_snapshot",
+        "sample_id_hash",
+        "schema_version",
+        "config_version",
+        "script_version",
+        "is_rework",
+        "parent_task_id",
+        "rework_reason",
+    ]:
+        if master_task[field] != task_meta[field]:
+            raise ValueError(
+                f"Master task.{field} 与 task_package/meta.{field} 不一致: "
+                f"master={master_task[field]}, meta={task_meta[field]}"
+            )
+
+    if master_task["sample_count"] != task_meta["total_samples"]:
+        raise ValueError(
+            f"Master task.sample_count 与 task_package/meta.total_samples 不一致: "
+            f"master={master_task['sample_count']}, meta={task_meta['total_samples']}"
+        )
+
+
+def validate_receive_record_matches_result_package(receive_record: dict, result_meta: dict) -> None:
+    """
+    校验 Receive_Registry.json 单条记录与 result_package/meta.json 一致。
+    """
+    for field in [
+        "result_package_id",
+        "task_id",
+        "task_type",
+        "module",
+        "operator",
+        "sample_count",
+        "completed_count",
+        "invalid_count",
+        "invalid_sample_ids",
+        "sample_id_hash",
+        "results_json_hash",
+        "export_version",
+        "schema_version",
+    ]:
+        if receive_record[field] != result_meta[field]:
+            raise ValueError(
+                f"Receive record.{field} 与 result_package/meta.{field} 不一致: "
+                f"receive={receive_record[field]}, meta={result_meta[field]}"
+            )
+
+    expected_duplicate_key = (
+        f"{result_meta['task_id']}|{result_meta['operator']}|{result_meta['export_version']}"
+    )
+
+    if receive_record["duplicate_key"] != expected_duplicate_key:
+        raise ValueError(
+            f"Receive duplicate_key 不符合冻结规则: "
+            f"receive={receive_record['duplicate_key']}, expected={expected_duplicate_key}"
+        )

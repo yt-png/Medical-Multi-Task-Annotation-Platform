@@ -2,11 +2,12 @@ SCHEMA_VERSION = "v1"
 MANIFEST_VERSION = "v1"
 REGISTRY_VERSION = "v1"
 REVIEW_VERSION = "v1"
+LOG_VERSION = "v1"
 
 PROJECT_ID = "MED_IMG_V1"
 
 TASK_TYPES = {"segmentation", "detection", "caption"}
-MODULES = TASK_TYPES
+MODULES = {"segmentation", "detection", "caption"}
 
 RESOLUTION_LEVELS = {"S", "M", "L"}
 
@@ -18,18 +19,6 @@ MASTER_CENTER_STATUS = {
     "completed",
     "reworking",
 }
-
-# Day1-Day12 允许中心状态推进到 to_review，禁止 completed
-MASTER_CENTER_STATUS_PRE_REVIEW_FINAL = {
-    "undistributed",
-    "distributed",
-    "merged",
-    "to_review",
-    "reworking",
-}
-
-# 只有 review/final 闭环后才允许写 completed
-MASTER_CENTER_STATUS_AFTER_REVIEW_FINAL = MASTER_CENTER_STATUS
 
 MASTER_RESULT_STATUS = {
     "not_collected",
@@ -95,8 +84,6 @@ DUPLICATE_KEY_FIELDS = (
     "operator",
     "export_version",
 )
-
-LOG_VERSION = "v1"
 
 ISSUE_MODULES = {
     "segmentation",
