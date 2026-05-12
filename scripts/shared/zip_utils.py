@@ -29,16 +29,15 @@ def _validate_zip_member_path(member: str) -> None:
         raise ValueError(f"ZIP 内路径禁止 .. 路径穿越: {member}")
 
 
-def create_zip(source_dir: str, output_zip_path: str) -> None:
+def create_zip(source_dir: str, output_zip_path: str, include_root_dir: bool = True) -> None:
     """
-    原子生成 ZIP：
-    1. 先写 output_zip_path + ".tmp"
-    2. 校验 tmp ZIP 完整性
-    3. 再 os.replace 为正式 ZIP
+    原子生成 ZIP。
 
-    注意：
-    flag / done 不在这里生成。
-    必须由分发脚本或导出脚本在确认 ZIP 完整后最后生成。
+    默认 include_root_dir=True：
+    - source_dir = ".../task_package" 时，ZIP 内部结构为 task_package/...
+    - source_dir = ".../result_package" 时，ZIP 内部结构为 result_package/...
+
+    如确实需要只打包目录内容，可显式传 include_root_dir=False。
     """
     if not os.path.isdir(source_dir):
         raise FileNotFoundError(f"source_dir 不存在或不是目录: {source_dir}")
@@ -52,11 +51,18 @@ def create_zip(source_dir: str, output_zip_path: str) -> None:
     if os.path.exists(tmp_zip_path):
         os.remove(tmp_zip_path)
 
+    source_dir = os.path.normpath(source_dir)
+
+    if include_root_dir:
+        base_dir = os.path.dirname(source_dir)
+    else:
+        base_dir = source_dir
+
     with zipfile.ZipFile(tmp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(source_dir):
             for file_name in files:
                 full_path = os.path.join(root, file_name)
-                rel_path = os.path.relpath(full_path, source_dir).replace("\\", "/")
+                rel_path = os.path.relpath(full_path, base_dir).replace("\\", "/")
                 _validate_zip_member_path(rel_path)
                 zf.write(full_path, rel_path)
 
@@ -165,3 +171,29 @@ def move_file(src: str, dst: str) -> None:
     if dst_dir:
         os.makedirs(dst_dir, exist_ok=True)
     shutil.move(src, dst)
+
+def assert_zip_has_single_root(zip_path: str, expected_root: str) -> None:
+    """
+    校验 ZIP 解压后的第一层根目录是否为 expected_root。
+    例如：
+    - task_package.zip 必须包含 task_package/
+    - result_package.zip 必须包含 result_package/
+    """
+    if not zip_exists_and_valid(zip_path):
+        raise ValueError(f"ZIP 不存在、为空或损坏: {zip_path}")
+
+    if not expected_root.endswith("/"):
+        expected_root = expected_root + "/"
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        names = [name for name in zf.namelist() if name and not name.endswith("/")]
+
+    if not names:
+        raise ValueError(f"ZIP 内容为空: {zip_path}")
+
+    for name in names:
+        _validate_zip_member_path(name)
+        if not name.startswith(expected_root):
+            raise ValueError(
+                f"ZIP 根目录错误，期望所有文件位于 {expected_root} 下，实际发现: {name}"
+            )

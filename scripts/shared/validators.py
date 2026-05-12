@@ -5,6 +5,7 @@ from .constants import (
     REGISTRY_VERSION,
     REVIEW_VERSION,
     RESULT_VERSION,
+    EXPORT_VERSION,
     TASK_TYPES,
     MODULES,
     RESOLUTION_LEVELS,
@@ -127,6 +128,11 @@ def validate_task_item(item: dict) -> None:
     if "ui_mode" in item:
         require_string(item["ui_mode"], "tasks.json.ui_mode")
 
+        if item["ui_mode"] not in TASK_TYPES:
+            raise ValueError("tasks.json.ui_mode invalid")
+
+        if item["ui_mode"] != item["task_type"]:
+            raise ValueError("tasks.json.ui_mode must equal task_type in V1")
     for field in [
         "sample_id",
         "case_id",
@@ -241,8 +247,8 @@ def validate_task_package_meta(meta: dict) -> None:
     if meta["schema_version"] != SCHEMA_VERSION:
         raise ValueError("task_package/meta.schema_version invalid")
 
-    if not isinstance(meta["total_samples"], int) or meta["total_samples"] < 0:
-        raise ValueError("task_package/meta.total_samples must be non-negative int")
+    if not isinstance(meta["total_samples"], int) or meta["total_samples"] <= 0:
+        raise ValueError("task_package/meta.total_samples must be positive int")
 
     if not meta["sample_id_hash"].startswith("sha256:"):
         raise ValueError("task_package/meta.sample_id_hash must start with sha256:")
@@ -376,10 +382,22 @@ def validate_result_package_meta(meta: dict) -> None:
     if meta["module"] != meta["task_type"]:
         raise ValueError("result_package/meta.module must equal task_type")
 
+    if meta["operator"] != meta["assigned_to"]:
+        raise ValueError("result_package/meta.operator must equal assigned_to")
+
+    if meta["exported_by"] != meta["operator"]:
+        raise ValueError("result_package/meta.exported_by must equal operator")
+
     if meta["schema_version"] != SCHEMA_VERSION:
         raise ValueError("result_package/meta.schema_version invalid")
 
-    for field in ["sample_count", "completed_count", "invalid_count"]:
+    if meta["export_version"] != EXPORT_VERSION:
+        raise ValueError("result_package/meta.export_version invalid")
+
+    if not isinstance(meta["sample_count"], int) or meta["sample_count"] <= 0:
+        raise ValueError("result_package/meta.sample_count must be positive int")
+
+    for field in ["completed_count", "invalid_count"]:
         if not isinstance(meta[field], int) or meta[field] < 0:
             raise ValueError(f"result_package/meta.{field} must be non-negative int")
 
@@ -451,8 +469,8 @@ def validate_master_manifest(manifest: dict) -> None:
         if task["task_type"] not in TASK_TYPES:
             raise ValueError("Master task_type invalid")
 
-        if not isinstance(task["sample_count"], int) or task["sample_count"] < 0:
-            raise ValueError("Master sample_count must be non-negative int")
+        if not isinstance(task["sample_count"], int) or task["sample_count"] <= 0:
+            raise ValueError("Master sample_count must be positive int")
 
         if task["schema_version"] != SCHEMA_VERSION:
             raise ValueError("Master task schema_version invalid")
@@ -492,13 +510,42 @@ def validate_receive_registry(registry: dict) -> None:
     if registry["project_id"] != PROJECT_ID:
         raise ValueError("Receive.project_id invalid")
 
+    require_string(registry["created_at"], "Receive.created_at")
+    require_string(registry["updated_at"], "Receive.updated_at")
     require_array(registry["records"], "Receive.records")
+
+    seen_receive_ids = set()
+    seen_duplicate_success_keys = set()
 
     for record in registry["records"]:
         require_object(record, "Receive record")
         validate_no_extra_fields(record, RECEIVE_RECORD_FIELDS, "Receive record")
         validate_no_forbidden_fields(record, "Receive record")
         validate_required_fields(record, RECEIVE_RECORD_REQUIRED_FIELDS, "Receive record")
+
+        for field in [
+            "receive_id",
+            "package_file",
+            "done_file",
+            "result_package_id",
+            "task_id",
+            "task_type",
+            "module",
+            "operator",
+            "received_at",
+            "validation_status",
+            "import_status",
+            "duplicate_key",
+            "sample_id_hash",
+            "results_json_hash",
+            "export_version",
+            "schema_version",
+        ]:
+            require_string(record[field], f"Receive.{field}")
+
+        if record["receive_id"] in seen_receive_ids:
+            raise ValueError(f"duplicate receive_id in Receive: {record['receive_id']}")
+        seen_receive_ids.add(record["receive_id"])
 
         if record["task_type"] not in TASK_TYPES:
             raise ValueError("Receive task_type invalid")
@@ -515,13 +562,105 @@ def validate_receive_registry(registry: dict) -> None:
         if record["schema_version"] != SCHEMA_VERSION:
             raise ValueError("Receive schema_version invalid")
 
-        if record["validation_status"] == "validation_passed" and record["import_status"] == "imported":
-            if record["failure_reason"] is not None:
-                raise ValueError("successful Receive record failure_reason must be null")
+        if not record["sample_id_hash"].startswith("sha256:"):
+            raise ValueError("Receive.sample_id_hash must start with sha256:")
+
+        if not record["results_json_hash"].startswith("sha256:"):
+            raise ValueError("Receive.results_json_hash must start with sha256:")
+
+        for field in ["package_file", "done_file"]:
+            if not is_relative_posix_path(record[field]):
+                raise ValueError(f"Receive.{field} must be relative POSIX path")
+
+        if record["processed_path"] is not None:
+            require_string(record["processed_path"], "Receive.processed_path")
+            if not is_relative_posix_path(record["processed_path"]):
+                raise ValueError("Receive.processed_path must be relative POSIX path")
+
+        if record["result_pool_path"] is not None:
             require_string(record["result_pool_path"], "Receive.result_pool_path")
-        else:
-            if record["import_status"] in {"skipped", "import_failed"}:
+            if not is_relative_posix_path(record["result_pool_path"]):
+                raise ValueError("Receive.result_pool_path must be relative POSIX path")
+
+        if record["moved_to_processed_at"] is not None:
+            require_string(record["moved_to_processed_at"], "Receive.moved_to_processed_at")
+
+        for field in ["sample_count", "completed_count", "invalid_count"]:
+            if not isinstance(record[field], int) or record[field] < 0:
+                raise ValueError(f"Receive.{field} must be non-negative int")
+
+        if record["sample_count"] <= 0:
+            raise ValueError("Receive.sample_count must be positive int")
+
+        if record["completed_count"] + record["invalid_count"] != record["sample_count"]:
+            raise ValueError("Receive completed_count + invalid_count must equal sample_count")
+
+        require_array(record["invalid_sample_ids"], "Receive.invalid_sample_ids")
+
+        if len(record["invalid_sample_ids"]) != record["invalid_count"]:
+            raise ValueError("Receive invalid_sample_ids length must equal invalid_count")
+
+        for sample_id in record["invalid_sample_ids"]:
+            require_string(sample_id, "Receive.invalid_sample_ids item")
+
+        expected_duplicate_key = (
+            f"{record['task_id']}|{record['operator']}|{record['export_version']}"
+        )
+
+        if record["duplicate_key"] != expected_duplicate_key:
+            raise ValueError(
+                f"Receive duplicate_key invalid: "
+                f"actual={record['duplicate_key']}, expected={expected_duplicate_key}"
+            )
+
+        validation_status = record["validation_status"]
+        import_status = record["import_status"]
+
+        if validation_status == "pending_validation":
+            if import_status != "not_imported":
+                raise ValueError("pending_validation must have import_status = not_imported")
+            if record["failure_reason"] is not None:
+                raise ValueError("pending_validation failure_reason must be null")
+            if record["result_pool_path"] is not None:
+                raise ValueError("pending_validation result_pool_path must be null")
+
+        elif validation_status == "validation_passed":
+            if import_status == "imported":
+                if record["failure_reason"] is not None:
+                    raise ValueError("imported Receive record failure_reason must be null")
+                require_string(record["result_pool_path"], "Receive.result_pool_path")
+                success_key = record["duplicate_key"]
+                if success_key in seen_duplicate_success_keys:
+                    raise ValueError(f"duplicate successful Receive duplicate_key: {success_key}")
+                seen_duplicate_success_keys.add(success_key)
+
+            elif import_status == "skipped":
                 require_string(record["failure_reason"], "Receive.failure_reason")
+                if record["failure_reason"] != "invalid_count_gt_0":
+                    raise ValueError("validation_passed + skipped should use invalid_count_gt_0")
+                if record["result_pool_path"] is not None:
+                    raise ValueError("skipped Receive result_pool_path must be null")
+            else:
+                raise ValueError("validation_passed must have import_status imported or skipped")
+
+        elif validation_status == "validation_failed":
+            if import_status != "skipped":
+                raise ValueError("validation_failed must have import_status = skipped")
+            require_string(record["failure_reason"], "Receive.failure_reason")
+            if record["result_pool_path"] is not None:
+                raise ValueError("validation_failed result_pool_path must be null")
+
+        elif validation_status == "duplicate":
+            if import_status != "skipped":
+                raise ValueError("duplicate must have import_status = skipped")
+            require_string(record["failure_reason"], "Receive.failure_reason")
+            if record["failure_reason"] != "duplicate_submission":
+                raise ValueError("duplicate failure_reason should be duplicate_submission")
+            if record["result_pool_path"] is not None:
+                raise ValueError("duplicate result_pool_path must be null")
+
+        if record["failure_detail"] is not None and not isinstance(record["failure_detail"], dict):
+            raise ValueError("Receive.failure_detail must be object or null")
 
 
 def validate_review_results(review: dict) -> None:
