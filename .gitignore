@@ -1,8 +1,6 @@
-# =========================
-# Project_Sync（只保留骨架）
-# =========================
+# Project_Sync 只保留目录结构，不提交交换文件
 Project_Sync/**
-!Project_Sync/.gitkeep
+!Project_Sync/
 !Project_Sync/01_Distribution/
 !Project_Sync/01_Distribution/.gitkeep
 !Project_Sync/02_Collection/
@@ -10,17 +8,13 @@ Project_Sync/**
 !Project_Sync/archive/
 !Project_Sync/archive/.gitkeep
 
-# =========================
-# 交换文件（严禁提交）
-# =========================
+# 任务包 / 结果包 / 同步标记
 *.zip
 *.done
 *.flag
 *.UPLOAD_DONE.flag
 
-# =========================
-# center 运行产物
-# =========================
+# 中心运行产物
 center/raw_input/**
 center/central_data_pool/**
 center/central_result_pool/**
@@ -29,78 +23,25 @@ center/received_packages/**
 center/manifests/**
 center/review/**
 center/final_output/**
-
-# 保留 central_data_pool 骨架
-!center/central_data_pool/
-!center/central_data_pool/images/
-!center/central_data_pool/images/.gitkeep
-!center/central_data_pool/masks/
-!center/central_data_pool/masks/.gitkeep
-!center/central_data_pool/metadata/
-!center/central_data_pool/metadata/.gitkeep
-!center/central_data_pool/downsample_candidates/
-!center/central_data_pool/downsample_candidates/.gitkeep
-
-# 保留 central_result_pool 骨架
-!center/central_result_pool/
-!center/central_result_pool/segmentation/
-!center/central_result_pool/segmentation/.gitkeep
-!center/central_result_pool/detection/
-!center/central_result_pool/detection/.gitkeep
-!center/central_result_pool/caption/
-!center/central_result_pool/caption/.gitkeep
-!center/central_result_pool/downsample/
-!center/central_result_pool/downsample/.gitkeep
-!center/central_result_pool/merged/
-!center/central_result_pool/merged/.gitkeep
-!center/central_result_pool/review_queue/
-!center/central_result_pool/review_queue/.gitkeep
-
-# 保留 received_packages 骨架
-!center/received_packages/
-!center/received_packages/processed/
-!center/received_packages/processed/.gitkeep
-!center/received_packages/failed/
-!center/received_packages/failed/.gitkeep
-!center/received_packages/duplicate/
-!center/received_packages/duplicate/.gitkeep
-!center/received_packages/pending_manual/
-!center/received_packages/pending_manual/.gitkeep
-
-# center logs / tmp
 center/logs/**
-!center/logs/.gitkeep
 center/tmp/**
+!center/logs/.gitkeep
 !center/tmp/.gitkeep
 
-# =========================
-# local 运行产物
-# =========================
+# 本地运行产物
 local/local_workspace/**
 local/logs/**
-!local/logs/.gitkeep
 local/tmp/**
+!local/logs/.gitkeep
 !local/tmp/.gitkeep
 
-# Label Studio / userscript / local_api 运行数据
-local/label_studio/exports/**
-local/label_studio/imports/**
-local/label_studio/data/**
-local/label_studio/tmp/**
-local/userscript/tmp/**
-local/local_api/tmp/**
-
-# =========================
 # 根目录运行产物
-# =========================
 logs/**
-!logs/.gitkeep
 tmp/**
+!logs/.gitkeep
 !tmp/.gitkeep
 
-# =========================
-# 数据文件（禁止提交真实数据）
-# =========================
+# 数据与媒体文件
 *.png
 *.jpg
 *.jpeg
@@ -109,23 +50,21 @@ tmp/**
 *.bmp
 *.nii
 *.nii.gz
-
-# Excel（禁止真实数据，允许模板）
 *.xlsx
 !docs/examples/*.xlsx
 !configs/templates/*.xlsx
 
-# =========================
 # Python / 环境
-# =========================
 __pycache__/
 *.pyc
 .venv/
 venv/
 .env
 
-# =========================
-# 其他
-# =========================
-.DS_Store
-Thumbs.db
+# Label Studio / userscript / local_api 运行导出
+local/label_studio/exports/**
+local/label_studio/imports/**
+local/label_studio/data/**
+local/label_studio/tmp/**
+local/userscript/tmp/**
+local/local_api/tmp/**
