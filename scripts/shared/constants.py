@@ -95,3 +95,41 @@ DUPLICATE_KEY_FIELDS = (
     "operator",
     "export_version",
 )
+
+LOG_VERSION = "v1"
+
+ISSUE_MODULES = {
+    "segmentation",
+    "detection",
+    "caption",
+    "downsample",
+    "case_consistency",
+    "general",
+}
+
+ISSUE_SEVERITY = {
+    "minor",
+    "major",
+    "critical",
+}
+
+LOG_LEVELS = {
+    "DEBUG",
+    "INFO",
+    "WARNING",
+    "ERROR",
+    "CRITICAL",
+}
+
+LOG_SIDE = {
+    "local",
+    "center",
+}
+
+LOG_EVENT_STATUS = {
+    "started",
+    "succeeded",
+    "failed",
+    "skipped",
+    "blocked",
+}

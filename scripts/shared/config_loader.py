@@ -1,13 +1,10 @@
 """
-配置加载器（冻结版）
+配置加载器（Day1 最终冻结版）
 
 职责：
-- 加载 configs/*.yaml 或 json
-- 提供统一配置入口
-
-注意：
-配置不能改变协议字段
-只能影响运行行为
+- 加载 configs/*.json / *.yaml / *.yml
+- 统一要求配置顶层为 object
+- 配置只能影响运行行为，不能替代协议字段
 """
 
 import json
@@ -20,12 +17,20 @@ except ImportError:
     yaml = None
 
 
+def _ensure_config_object(data: Any, path: str) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError(f"配置文件顶层必须是 object: {path}")
+    return data
+
+
 def load_json_config(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         raise FileNotFoundError(f"配置文件不存在: {path}")
 
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    return _ensure_config_object(data, path)
 
 
 def load_yaml_config(path: str) -> Dict[str, Any]:
@@ -36,14 +41,18 @@ def load_yaml_config(path: str) -> Dict[str, Any]:
         raise FileNotFoundError(f"配置文件不存在: {path}")
 
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+
+    return _ensure_config_object(data, path)
 
 
 def load_config(path: str) -> Dict[str, Any]:
-    """自动识别配置格式"""
-    if path.endswith(".json"):
+    lower_path = path.lower()
+
+    if lower_path.endswith(".json"):
         return load_json_config(path)
-    elif path.endswith(".yaml") or path.endswith(".yml"):
+
+    if lower_path.endswith(".yaml") or lower_path.endswith(".yml"):
         return load_yaml_config(path)
-    else:
-        raise ValueError(f"不支持的配置格式: {path}")
+
+    raise ValueError(f"不支持的配置格式: {path}")
