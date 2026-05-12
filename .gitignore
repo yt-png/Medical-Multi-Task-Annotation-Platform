@@ -1,8 +1,20 @@
+# Project_Sync 只保留目录结构，不提交交换文件
+Project_Sync/**
+!Project_Sync/
+!Project_Sync/01_Distribution/
+!Project_Sync/01_Distribution/.gitkeep
+!Project_Sync/02_Collection/
+!Project_Sync/02_Collection/.gitkeep
+!Project_Sync/archive/
+!Project_Sync/archive/.gitkeep
+
+# 任务包 / 结果包 / 同步标记
 *.zip
 *.done
 *.flag
 *.UPLOAD_DONE.flag
 
+# 中心运行产物
 center/raw_input/**
 center/central_data_pool/**
 center/central_result_pool/**
@@ -13,38 +25,46 @@ center/review/**
 center/final_output/**
 center/logs/**
 center/tmp/**
-
-local/local_workspace/**
-local/logs/**
-local/tmp/**
-
-logs/**
-tmp/**
-
-Project_Sync/**
-
-!center/raw_input/.gitkeep
-!center/central_data_pool/.gitkeep
-!center/central_result_pool/.gitkeep
-!center/task_packages/.gitkeep
-!center/received_packages/.gitkeep
-!center/manifests/.gitkeep
-!center/review/.gitkeep
-!center/final_output/.gitkeep
 !center/logs/.gitkeep
 !center/tmp/.gitkeep
 
-!local/local_workspace/.gitkeep
-!local/label_studio/.gitkeep
-!local/userscript/.gitkeep
-!local/local_api/.gitkeep
-!local/pages/.gitkeep
+# 本地运行产物
+local/local_workspace/**
+local/logs/**
+local/tmp/**
 !local/logs/.gitkeep
 !local/tmp/.gitkeep
 
-!Project_Sync/01_Distribution/.gitkeep
-!Project_Sync/02_Collection/.gitkeep
-!Project_Sync/archive/.gitkeep
-
+# 根目录运行产物
+logs/**
+tmp/**
 !logs/.gitkeep
 !tmp/.gitkeep
+
+# 数据与媒体文件
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.bmp
+*.nii
+*.nii.gz
+*.xlsx
+!docs/examples/*.xlsx
+!configs/templates/*.xlsx
+
+# Python / 环境
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Label Studio / userscript / local_api 运行导出
+local/label_studio/exports/**
+local/label_studio/imports/**
+local/label_studio/data/**
+local/label_studio/tmp/**
+local/userscript/tmp/**
+local/local_api/tmp/**
