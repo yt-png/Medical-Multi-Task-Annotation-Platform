@@ -150,6 +150,10 @@ def validate_task_item(item: dict) -> None:
     require_string(item["image"], "tasks.json.image")
     if not is_relative_posix_path(item["image"]):
         raise ValueError("tasks.json.image must be relative POSIX path")
+    
+    lower_image = item["image"].lower()
+    if not (lower_image.endswith(".jpg") or lower_image.endswith(".png")):
+        raise ValueError("tasks.json.image must be .jpg or .png in V1")
 
     if item["diagnosis_raw"] is not None:
         require_string(item["diagnosis_raw"], "tasks.json.diagnosis_raw")
@@ -157,9 +161,14 @@ def validate_task_item(item: dict) -> None:
     task_type = item["task_type"]
 
     if task_type == "segmentation":
-        require_string(item["mask"], "tasks.json.mask")
+        require_string(item["mask"], "segmentation tasks.json.mask")
+
         if not is_relative_posix_path(item["mask"]):
-            raise ValueError("segmentation mask must be relative POSIX path")
+            raise ValueError("segmentation tasks.json.mask must be relative POSIX path")
+
+        lower_mask = item["mask"].lower()
+        if not lower_mask.endswith(".png"):
+            raise ValueError("segmentation tasks.json.mask must be .png in V1")
 
         if item["prompt_version"] is not None:
             raise ValueError("segmentation prompt_version must be null")
@@ -186,6 +195,19 @@ def validate_task_item(item: dict) -> None:
 
         if item["context_sources"] != CONTEXT_SOURCES_CAPTION:
             raise ValueError("caption context_sources must equal ['image', 'diagnosis_raw']")
+
+def validate_tasks_json(tasks: list) -> None:
+    require_array(tasks, "tasks.json")
+
+    seen = set()
+
+    for item in tasks:
+        validate_task_item(item)
+
+        key = (item["sample_id"], item["task_type"])
+        if key in seen:
+            raise ValueError(f"duplicate sample_id + task_type in tasks.json: {key}")
+        seen.add(key)
 
 def validate_task_package_meta(meta: dict) -> None:
     require_object(meta, "task_package/meta.json")
