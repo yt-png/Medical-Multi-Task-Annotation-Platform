@@ -11,6 +11,7 @@ TASK_ITEM_FIELDS = {
     "schema_version",
     "prompt_version",
     "context_sources",
+    "ui_mode",
 }
 
 RESULT_ITEM_FIELDS = {
@@ -251,4 +252,14 @@ FORBIDDEN_FIELDS = {
     "package_hash",
     "status",
     "validated",
+}
+
+FINAL_DOWNSAMPLE_FIELDS = {
+    "x2",
+    "x4",
+}
+
+FINAL_DOWNSAMPLE_DISABLED_FIELDS = {
+    "enabled",
+    "reason",
 }

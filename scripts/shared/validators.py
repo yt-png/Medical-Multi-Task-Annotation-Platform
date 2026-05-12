@@ -10,7 +10,7 @@ from .constants import (
     RESOLUTION_LEVELS,
     CONTEXT_SOURCES_CAPTION,
     MASTER_CENTER_STATUS,
-    MASTER_CENTER_STATUS_BEFORE_REVIEW_FINAL,
+    MASTER_CENTER_STATUS_PRE_REVIEW_FINAL,
     MASTER_RESULT_STATUS,
     RECEIVE_VALIDATION_STATUS,
     RECEIVE_IMPORT_STATUS,
@@ -45,6 +45,8 @@ from .schemas import (
     FINAL_DETECTION_FIELDS,
     FINAL_CAPTION_FIELDS,
     FINAL_SOURCE_FIELDS,
+    FINAL_DOWNSAMPLE_FIELDS,
+    FINAL_DOWNSAMPLE_DISABLED_FIELDS,
 )
 
 
@@ -108,7 +110,13 @@ def validate_task_item(item: dict) -> None:
     require_object(item, "tasks.json item")
     validate_no_extra_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
     validate_no_forbidden_fields(item, "tasks.json item")
-    validate_required_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
+    TASK_ITEM_REQUIRED_FIELDS = TASK_ITEM_FIELDS - {"ui_mode"}
+    validate_required_fields(item, TASK_ITEM_REQUIRED_FIELDS, "tasks.json item")
+
+    if item.get("ui_mode") is not None:
+        require_string(item["ui_mode"], "tasks.json.ui_mode")
+        if item["ui_mode"] not in TASK_TYPES:
+            raise ValueError("tasks.json.ui_mode invalid")
 
     for field in ["sample_id", "case_id", "check_category", "image_id", "task_type", "resolution_level", "schema_version"]:
         require_string(item[field], f"tasks.json.{field}")
@@ -338,7 +346,7 @@ def validate_master_manifest(manifest: dict, allow_completed: bool = False) -> N
 
     require_array(manifest["tasks"], "Master_Manifest.tasks")
 
-    allowed_center_status = MASTER_CENTER_STATUS if allow_completed else MASTER_CENTER_STATUS_BEFORE_REVIEW_FINAL
+    allowed_center_status = MASTER_CENTER_STATUS if allow_completed else MASTER_CENTER_STATUS_PRE_REVIEW_FINAL
 
     seen_task_ids = set()
 
@@ -523,6 +531,45 @@ def validate_final_item(item: dict) -> None:
     if item["resolution_level"] not in RESOLUTION_LEVELS:
         raise ValueError("final resolution_level invalid")
 
+    downsample = item["downsample"]
+    level = item["resolution_level"]
+
+    if level == "L":
+        require_object(downsample, "final.downsample")
+        validate_no_extra_fields(downsample, FINAL_DOWNSAMPLE_FIELDS, "final.downsample")
+        validate_required_fields(downsample, FINAL_DOWNSAMPLE_FIELDS, "final.downsample")
+        for field in ["x2", "x4"]:
+            require_string(downsample[field], f"final.downsample.{field}")
+            if not is_relative_posix_path(downsample[field]):
+                raise ValueError(f"final.downsample.{field} must be relative POSIX path")
+
+    elif level == "M":
+        require_object(downsample, "final.downsample")
+        if "x2" not in downsample:
+            raise ValueError("resolution_level M requires final.downsample.x2")
+        for field in downsample:
+            if field not in FINAL_DOWNSAMPLE_FIELDS:
+                raise ValueError("final.downsample contains invalid field")
+        require_string(downsample["x2"], "final.downsample.x2")
+        if not is_relative_posix_path(downsample["x2"]):
+            raise ValueError("final.downsample.x2 must be relative POSIX path")
+        if "x4" in downsample:
+            require_string(downsample["x4"], "final.downsample.x4")
+            if not is_relative_posix_path(downsample["x4"]):
+                raise ValueError("final.downsample.x4 must be relative POSIX path")
+
+    elif level == "S":
+        if downsample is None:
+            pass
+        else:
+            require_object(downsample, "final.downsample")
+            validate_no_extra_fields(downsample, FINAL_DOWNSAMPLE_DISABLED_FIELDS, "final.downsample")
+            validate_required_fields(downsample, FINAL_DOWNSAMPLE_DISABLED_FIELDS, "final.downsample")
+            if downsample["enabled"] is not False:
+                raise ValueError("resolution_level S downsample.enabled must be false")
+            if downsample["reason"] != "resolution_level_S":
+                raise ValueError("resolution_level S downsample.reason invalid")
+    
     require_string(item["image"], "final.image")
     if not is_relative_posix_path(item["image"]):
         raise ValueError("final.image must be relative POSIX path")
