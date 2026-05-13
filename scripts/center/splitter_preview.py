@@ -35,10 +35,10 @@ def image_ext_from_path(image_path: str) -> str:
 
 def build_task_item(sample: dict, task_type: str, config: dict) -> dict:
     image_ext = image_ext_from_path(sample["image_path"])
-    image = f"images/{sample['image_id']}{image_ext}"
+    image = f"images/{sample['sample_id']}{image_ext}"
 
     if task_type == "segmentation":
-        mask = f"masks/{sample['image_id']}.png"
+        mask = f"masks/{sample['sample_id']}.png"
         prompt_version = None
         context_sources = None
     elif task_type == "detection":
