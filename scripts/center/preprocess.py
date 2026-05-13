@@ -208,7 +208,7 @@ def generate_downsample_candidates(
             out_abs = central_data_pool / out_rel
             ensure_dir(out_abs.parent)
             resized.save(out_abs, format="JPEG", quality=95)
-            generated[scale] = to_posix(PurePosixPath(central_data_pool.as_posix()) / out_rel)
+            generated[scale] = to_posix(out_rel)
 
     return generated
 
