@@ -116,7 +116,6 @@ def _get_zip_file_names(zip_path: str) -> List[str]:
     names = _get_zip_names(zip_path)
     return [name for name in names if not _is_directory_member(name)]
 
-
 def create_zip(source_dir: str, output_zip_path: str, include_root_dir: bool = True) -> None:
     """
     原子生成 ZIP。
@@ -215,6 +214,43 @@ def assert_zip_contains_files(zip_path: str, required_files: Iterable[str]) -> N
 
         if required_file not in file_names:
             raise ValueError(f"ZIP 缺少必需文件: {required_file}")
+        
+def assert_file_not_empty_in_zip(zip_path: str, file_path: str):
+    """
+    校验 ZIP 内某个文件内容非空（用于 README.txt）
+    """
+    if not zip_exists_and_valid(zip_path):
+        raise ValueError(f"ZIP 不存在或损坏: {zip_path}")
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        try:
+            content = zf.read(file_path)
+        except KeyError:
+            raise ValueError(f"ZIP 缺少文件: {file_path}")
+
+        if not content or not content.strip():
+            raise ValueError(f"{file_path} 不得为空")
+
+def assert_readme_contains_keywords(zip_path: str, readme_path: str, keywords: Iterable[str]) -> None:
+    """
+    校验 README.txt 不只是非空，还必须包含关键语义字段。
+
+    用于：
+    - task_package/README.txt
+    - result_package/README.txt
+    """
+    if not zip_exists_and_valid(zip_path):
+        raise ValueError(f"ZIP 不存在或损坏: {zip_path}")
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        try:
+            content = zf.read(readme_path).decode("utf-8")
+        except KeyError:
+            raise ValueError(f"ZIP 缺少文件: {readme_path}")
+
+    for keyword in keywords:
+        if keyword not in content:
+            raise ValueError(f"{readme_path} 缺少关键说明字段: {keyword}")
 
 
 def assert_zip_has_file_under_dir(zip_path: str, required_dir: str) -> None:
@@ -267,6 +303,14 @@ def assert_task_package_zip_structure(zip_path: str, task_type: str | None = Non
         ],
     )
 
+    assert_file_not_empty_in_zip(zip_path, "task_package/README.txt")
+
+    assert_readme_contains_keywords(
+    zip_path,
+    "task_package/README.txt",
+    ["task_id", "task_type", "assigned_to"],
+)
+
     assert_zip_has_file_under_dir(zip_path, "task_package/images/")
 
     if task_type == "segmentation":
@@ -311,6 +355,8 @@ def assert_result_package_zip_structure(zip_path: str, module: str | None = None
         ],
     )
 
+    assert_file_not_empty_in_zip(zip_path, "result_package/README.txt")
+
     if module == "segmentation":
         assert_zip_has_file_under_dir(zip_path, "result_package/results/masks/")
 
@@ -323,6 +369,22 @@ def assert_result_package_zip_structure(zip_path: str, module: str | None = None
 
     else:
         raise ValueError(f"非法 module: {module}")
+    
+def assert_task_package_content_consistency(zip_path: str, tasks: list):
+    """
+    校验 ZIP 内 images / masks 是否与 tasks.json 一致
+    """
+    file_names = set(_get_zip_file_names(zip_path))
+
+    for item in tasks:
+        image_path = f"task_package/{item['image']}"
+        if image_path not in file_names:
+            raise ValueError(f"ZIP 缺少 image: {image_path}")
+
+        if item["task_type"] == "segmentation":
+            mask_path = f"task_package/{item['mask']}"
+            if mask_path not in file_names:
+                raise ValueError(f"ZIP 缺少 mask: {mask_path}")
 
 
 def extract_zip_safe(zip_path: str, target_dir: str, expected_root: str | None = None) -> None:

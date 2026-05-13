@@ -14,10 +14,6 @@ RESOLUTION_LEVELS = {"S", "M", "L"}
 MASTER_CENTER_STATUS = {
     "undistributed",
     "distributed",
-    "merged",
-    "to_review",
-    "completed",
-    "reworking",
 }
 
 MASTER_RESULT_STATUS = {
@@ -49,10 +45,11 @@ REWORK_MODULES = {
     "segmentation",
     "detection",
     "caption",
-    "downsample",
 }
 
 CONTEXT_SOURCES_CAPTION = ["image", "diagnosis_raw"]
+
+CAPTION_PROMPT_VERSION = "caption_prompt_v1"
 
 RESULT_VERSION = "v1"
 EXPORT_VERSION = "v1"

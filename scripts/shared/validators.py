@@ -28,6 +28,7 @@ from .hash_utils import compute_sample_id_hash, compute_file_sha256
 from .schemas import (
     TASK_ITEM_FIELDS,
     TASK_ITEM_BASE_REQUIRED_FIELDS,
+    TASK_ITEM_REQUIRED_ALWAYS_PRESENT,
     TASK_PACKAGE_META_FIELDS,
     TASK_PACKAGE_META_REQUIRED_FIELDS,
     RESULT_ITEM_FIELDS,
@@ -64,6 +65,10 @@ from .schemas import (
 )
 import re
 
+# 注意：
+# validate_task_id_format / validate_result_package_id_format
+# 定义在文件底部，属于本文件内部函数，不需要 import
+
 def require_object(obj: object, name: str) -> None:
     if not isinstance(obj, dict):
         raise ValueError(f"{name} must be an object")
@@ -91,6 +96,36 @@ def require_number(value: object, name: str) -> None:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError(f"{name} must be number")
 
+def require_absent_or_null(value: object, field_name: str) -> None:
+    """
+    optional 字段规则：
+    - 不存在：合法，item.get(...) 得到 None
+    - 存在且为 null：合法
+    - 存在且有值：非法
+    """
+    if value is not None:
+        raise ValueError(f"{field_name} must be null or absent")
+
+def validate_sample_id_format(sample_id: str):
+    require_string(sample_id, "sample_id")
+
+def validate_sample_id_case_id_consistency(sample_id: str, case_id: str) -> None:
+    """
+    校验 sample_id 中是否包含当前 case_id。
+
+    注意：
+    sample_id = {check_category}_{case_id}_{image_id}
+    但 case_id 本身可能包含 "_"，所以不能用 split("_", 2) 反解析。
+    """
+    require_string(sample_id, "sample_id")
+    require_string(case_id, "case_id")
+
+    expected_middle = f"_{case_id}_"
+
+    if expected_middle not in sample_id:
+        raise ValueError(
+            f"sample_id 与 case_id 不一致: sample_id={sample_id}, case_id={case_id}"
+        )
 
 def validate_no_extra_fields(obj: dict, allowed_fields: set, name: str) -> None:
     extra = set(obj.keys()) - allowed_fields
@@ -102,13 +137,6 @@ def validate_required_fields(obj: dict, required_fields: set, name: str) -> None
     missing = required_fields - set(obj.keys())
     if missing:
         raise ValueError(f"{name} missing fields: {sorted(missing)}")
-
-
-def validate_no_forbidden_fields(obj: dict, name: str) -> None:
-    forbidden = set(obj.keys()) & FORBIDDEN_FIELD_NAMES
-    if forbidden:
-        raise ValueError(f"{name} contains forbidden fields: {sorted(forbidden)}")
-
 
 def validate_no_forbidden_fields_deep(obj: object, name: str) -> None:
     if isinstance(obj, dict):
@@ -135,11 +163,17 @@ def validate_path_or_null(value: object, field_name: str) -> None:
 
 
 def validate_task_item(item: dict) -> None:
+    # 安全获取 optional 字段
+    prompt_version = item.get("prompt_version")
+    context_sources = item.get("context_sources")
+    ui_mode = item.get("ui_mode")
     require_object(item, "tasks.json item")
     validate_no_extra_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
-    validate_no_forbidden_fields(item, "tasks.json item")
     validate_no_forbidden_fields_deep(item, "tasks.json item")
     validate_required_fields(item, TASK_ITEM_BASE_REQUIRED_FIELDS, "tasks.json item")
+
+    image_path = item["image"]
+    image_id = item["image_id"]
 
     if "ui_mode" in item:
         require_string(item["ui_mode"], "tasks.json.ui_mode")
@@ -160,8 +194,11 @@ def validate_task_item(item: dict) -> None:
     ]:
         require_string(item[field], f"tasks.json.{field}")
 
+    validate_sample_id_format(item["sample_id"])
+    validate_sample_id_case_id_consistency(item["sample_id"], item["case_id"])
+
     if item["task_type"] not in TASK_TYPES:
-        raise ValueError("tasks.json.task_type invalid")
+        raise ValueError("invalid task_type")
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("tasks.json.schema_version invalid")
@@ -177,46 +214,55 @@ def validate_task_item(item: dict) -> None:
     if not (lower_image.endswith(".jpg") or lower_image.endswith(".png")):
         raise ValueError("tasks.json.image must be .jpg or .png in V1")
 
-    if item["diagnosis_raw"] is not None:
-        require_string(item["diagnosis_raw"], "tasks.json.diagnosis_raw")
+    require_string(item["diagnosis_raw"], "tasks.json.diagnosis_raw")
 
     task_type = item["task_type"]
 
     if task_type == "segmentation":
-        require_string(item["mask"], "segmentation tasks.json.mask")
 
-        if not is_relative_posix_path(item["mask"]):
+        mask = item.get("mask")
+        require_string(mask, "tasks.json.mask")
+
+        if not is_relative_posix_path(mask):
             raise ValueError("segmentation tasks.json.mask must be relative POSIX path")
 
-        lower_mask = item["mask"].lower()
+        lower_mask = mask.lower()
         if not lower_mask.endswith(".png"):
             raise ValueError("segmentation tasks.json.mask must be .png in V1")
 
-        if item["prompt_version"] is not None:
-            raise ValueError("segmentation prompt_version must be null")
-
-        if item["context_sources"] is not None:
-            raise ValueError("segmentation context_sources must be null")
+        require_absent_or_null(prompt_version, "segmentation prompt_version")
+        require_absent_or_null(context_sources, "segmentation context_sources")
 
     elif task_type == "detection":
-        if item["mask"] is not None:
+        if (mask := item.get("mask")) is not None:
             raise ValueError("detection mask must be null")
 
-        if item["prompt_version"] is not None:
-            raise ValueError("detection prompt_version must be null")
-
-        if item["context_sources"] is not None:
-            raise ValueError("detection context_sources must be null")
+        require_absent_or_null(prompt_version, "detection prompt_version")
+        require_absent_or_null(context_sources, "detection context_sources")
 
     elif task_type == "caption":
-        if item["mask"] is not None:
+        if (mask := item.get("mask")) is not None:
             raise ValueError("caption mask must be null")
 
         require_string(item["diagnosis_raw"], "caption diagnosis_raw")
-        require_string(item["prompt_version"], "caption prompt_version")
+        require_string(prompt_version, "caption prompt_version")
 
-        if item["context_sources"] != CONTEXT_SOURCES_CAPTION:
-            raise ValueError("caption context_sources must equal ['image', 'diagnosis_raw']")
+        context_sources = item.get("context_sources")
+        if not isinstance(context_sources, list):
+            raise ValueError("caption context_sources must be list")
+        
+        for source in item["context_sources"]:
+            require_string(source, "context_sources item")
+
+            if source not in CONTEXT_SOURCES_CAPTION:
+                raise ValueError(
+                    f"context_sources 非法: {source}, 只允许 {CONTEXT_SOURCES_CAPTION}"
+                )
+
+def validate_sample_id_hash_consistency(tasks: list, expected_hash: str):
+    computed = compute_sample_id_hash([item["sample_id"] for item in tasks])
+    if computed != expected_hash:
+        raise ValueError("sample_id_hash mismatch")
 
 def validate_tasks_json(tasks: list) -> None:
     require_array(tasks, "tasks.json")
@@ -237,7 +283,6 @@ def validate_tasks_json(tasks: list) -> None:
 def validate_task_package_meta(meta: dict) -> None:
     require_object(meta, "task_package/meta.json")
     validate_no_extra_fields(meta, TASK_PACKAGE_META_FIELDS, "task_package/meta.json")
-    validate_no_forbidden_fields(meta, "task_package/meta.json")
     validate_no_forbidden_fields_deep(meta, "task_package/meta.json")
     validate_required_fields(meta, TASK_PACKAGE_META_REQUIRED_FIELDS, "task_package/meta.json")
 
@@ -293,20 +338,37 @@ def validate_task_package_meta(meta: dict) -> None:
         if meta["rework_reason"] is not None:
             raise ValueError("normal task rework_reason must be null")
 
+def validate_task_images_exist_in_zip(zip_path: str, tasks: list):
+    from .zip_utils import _get_zip_file_names
+
+    file_names = set(_get_zip_file_names(zip_path))
+
+    for item in tasks:
+        image_path = f"task_package/{item['image']}"
+        if image_path not in file_names:
+            raise ValueError(f"ZIP 缺少 image: {image_path}")
+
+        if item["task_type"] == "segmentation":
+            mask_path = f"task_package/{item['mask']}"
+            if mask_path not in file_names:
+                raise ValueError(f"ZIP 缺少 mask: {mask_path}")
 
 def validate_result_item(item: dict) -> None:
     require_object(item, "results.json item")
     validate_no_extra_fields(item, RESULT_ITEM_FIELDS, "results.json item")
-    validate_no_forbidden_fields(item, "results.json item")
     validate_no_forbidden_fields_deep(item, "results.json item")
     validate_required_fields(item, RESULT_ITEM_REQUIRED_FIELDS, "results.json item")
 
     for field in ["sample_id", "case_id", "module", "operator", "timestamp", "task_id", "version", "schema_version"]:
         require_string(item[field], f"results.json.{field}")
 
+    validate_sample_id_format(item["sample_id"])
+    validate_sample_id_case_id_consistency(item["sample_id"], item["case_id"])
+
     if item["module"] not in MODULES:
         raise ValueError("results.json.module invalid")
-        validate_task_id_format(item["task_id"], item["module"], "results.json.task_id")
+
+    validate_task_id_format(item["task_id"], item["module"], "results.json.task_id")
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("results.json.schema_version invalid")
@@ -378,7 +440,6 @@ def validate_results_json(results: list) -> None:
 def validate_result_package_meta(meta: dict) -> None:
     require_object(meta, "result_package/meta.json")
     validate_no_extra_fields(meta, RESULT_PACKAGE_META_FIELDS, "result_package/meta.json")
-    validate_no_forbidden_fields(meta, "result_package/meta.json")
     validate_no_forbidden_fields_deep(meta, "result_package/meta.json")
     validate_required_fields(meta, RESULT_PACKAGE_META_REQUIRED_FIELDS, "result_package/meta.json")
 
@@ -459,7 +520,6 @@ def validate_result_package_meta(meta: dict) -> None:
 def validate_master_manifest(manifest: dict) -> None:
     require_object(manifest, "Master_Manifest.json")
     validate_no_extra_fields(manifest, MASTER_TOP_FIELDS, "Master_Manifest.json")
-    validate_no_forbidden_fields(manifest, "Master_Manifest.json")
     validate_no_forbidden_fields_deep(manifest, "Master_Manifest.json")
     validate_required_fields(manifest, MASTER_TOP_REQUIRED_FIELDS, "Master_Manifest.json")
 
@@ -479,7 +539,6 @@ def validate_master_manifest(manifest: dict) -> None:
     for task in manifest["tasks"]:
         require_object(task, "Master_Manifest task")
         validate_no_extra_fields(task, MASTER_TASK_FIELDS, "Master_Manifest task")
-        validate_no_forbidden_fields(task, "Master_Manifest task")
         validate_required_fields(task, MASTER_TASK_REQUIRED_FIELDS, "Master_Manifest task")
 
         if task["task_id"] in seen_task_ids:
@@ -546,7 +605,6 @@ def validate_master_manifest(manifest: dict) -> None:
 def validate_receive_registry(registry: dict) -> None:
     require_object(registry, "Receive_Registry.json")
     validate_no_extra_fields(registry, RECEIVE_TOP_FIELDS, "Receive_Registry.json")
-    validate_no_forbidden_fields(registry, "Receive_Registry.json")
     validate_no_forbidden_fields_deep(registry, "Receive_Registry.json")
     validate_required_fields(registry, RECEIVE_TOP_REQUIRED_FIELDS, "Receive_Registry.json")
 
@@ -566,7 +624,6 @@ def validate_receive_registry(registry: dict) -> None:
     for record in registry["records"]:
         require_object(record, "Receive record")
         validate_no_extra_fields(record, RECEIVE_RECORD_FIELDS, "Receive record")
-        validate_no_forbidden_fields(record, "Receive record")
         validate_required_fields(record, RECEIVE_RECORD_REQUIRED_FIELDS, "Receive record")
 
         for field in [
@@ -724,7 +781,6 @@ def validate_receive_registry(registry: dict) -> None:
 def validate_review_results(review: dict) -> None:
     require_object(review, "review_results.json")
     validate_no_extra_fields(review, REVIEW_TOP_FIELDS, "review_results.json")
-    validate_no_forbidden_fields(review, "review_results.json")
     validate_required_fields(review, REVIEW_TOP_REQUIRED_FIELDS, "review_results.json")
 
     if review["review_version"] != REVIEW_VERSION:
@@ -742,7 +798,6 @@ def validate_review_results(review: dict) -> None:
     for record in review["records"]:
         require_object(record, "review record")
         validate_no_extra_fields(record, REVIEW_RECORD_FIELDS, "review record")
-        validate_no_forbidden_fields(record, "review record")
         validate_required_fields(record, REVIEW_RECORD_REQUIRED_FIELDS, "review record")
 
         for field in [
@@ -844,7 +899,6 @@ def validate_review_results(review: dict) -> None:
 def validate_final_item(item: dict) -> None:
     require_object(item, "final.json item")
     validate_no_extra_fields(item, FINAL_ITEM_FIELDS, "final.json item")
-    validate_no_forbidden_fields(item, "final.json item")
     validate_required_fields(item, FINAL_ITEM_REQUIRED_FIELDS, "final.json item")
 
     for field in [
@@ -858,6 +912,9 @@ def validate_final_item(item: dict) -> None:
         "schema_version",
     ]:
         require_string(item[field], f"final.{field}")
+
+    validate_sample_id_format(item["sample_id"])
+    validate_sample_id_case_id_consistency(item["sample_id"], item["case_id"])
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("final schema_version invalid")
@@ -1009,8 +1066,8 @@ def validate_task_package_consistency(tasks: list, meta: dict) -> None:
             raise ValueError("segmentation task_package/meta.has_mask 必须为 true")
 
         for item in tasks:
-            require_string(item["mask"], "segmentation tasks.json.mask")
-            if not is_relative_posix_path(item["mask"]):
+            require_string(item.get("mask"), "tasks.json.mask")
+            if not is_relative_posix_path(mask = item.get("mask")):
                 raise ValueError("segmentation tasks.json.mask 必须是相对 POSIX 路径")
 
     if meta["task_type"] in {"detection", "caption"}:
@@ -1018,7 +1075,7 @@ def validate_task_package_consistency(tasks: list, meta: dict) -> None:
             raise ValueError("detection/caption task_package/meta.has_mask 必须为 false")
 
         for item in tasks:
-            if item["mask"] is not None:
+            if (mask := item.get("mask")) is not None:
                 raise ValueError("detection/caption tasks.json.mask 必须为 null")
 
 

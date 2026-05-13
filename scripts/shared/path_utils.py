@@ -53,9 +53,6 @@ def is_relative_posix_path(path: str, allow_trailing_slash: bool = False) -> boo
     if not parts:
         return False
 
-    if "." in parts:
-        return False
-
     if ".." in parts:
         return False
 
