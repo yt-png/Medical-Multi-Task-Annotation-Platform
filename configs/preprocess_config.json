@@ -5,9 +5,9 @@
   "config_version": "v1.0",
   "script_version": "v1.0",
   "input": {
-    "excel_path": "D:/datademo/demo/selected_patients.xlsx",
-    "image_dir": "D:/datademo/demo/images",
-    "mask_dir": "D:/datademo/demo/masks"
+    "excel_path": "center/raw_input/selected_patients.xlsx",
+    "image_dir": "center/raw_input/images",
+    "mask_dir": "center/raw_input/masks"
   },
   "output": {
     "central_data_pool": "center/central_data_pool"
