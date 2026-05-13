@@ -23,12 +23,32 @@ except ImportError:
     yaml = None
 
 
+_FORBIDDEN_CONFIG_TOP_KEYS = {
+    "tasks",
+    "records",
+    "results",
+    "final",
+    "Master_Manifest",
+    "Receive_Registry",
+    "review_results",
+    "final_json",
+    "tasks_json",
+    "results_json",
+}
+
+
 def _ensure_config_object(data: Any, path: str) -> Dict[str, Any]:
     if data is None:
         raise ValueError(f"配置文件为空: {path}")
 
     if not isinstance(data, dict):
         raise ValueError(f"配置文件顶层必须是 object: {path}")
+
+    forbidden = set(data.keys()) & _FORBIDDEN_CONFIG_TOP_KEYS
+    if forbidden:
+        raise ValueError(
+            f"配置文件不得替代协议文件或协议顶层结构: {path}, forbidden={sorted(forbidden)}"
+        )
 
     return data
 

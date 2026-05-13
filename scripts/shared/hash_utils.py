@@ -28,6 +28,9 @@ def _normalize_sample_ids(sample_ids: Iterable[str]) -> List[str]:
             raise ValueError(f"sample_id 必须是非空字符串: {sample_id}")
         normalized.append(sample_id)
 
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("sample_ids 中存在重复 sample_id，禁止计算 sample_id_hash")
+
     return sorted(normalized)
 
 

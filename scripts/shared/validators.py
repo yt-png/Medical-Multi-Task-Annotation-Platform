@@ -62,7 +62,7 @@ from .schemas import (
     FINAL_DOWNSAMPLE_FIELDS,
     FINAL_DOWNSAMPLE_DISABLED_FIELDS,
 )
-
+import re
 
 def require_object(obj: object, name: str) -> None:
     if not isinstance(obj, dict):
@@ -110,6 +110,20 @@ def validate_no_forbidden_fields(obj: dict, name: str) -> None:
         raise ValueError(f"{name} contains forbidden fields: {sorted(forbidden)}")
 
 
+def validate_no_forbidden_fields_deep(obj: object, name: str) -> None:
+    if isinstance(obj, dict):
+        forbidden = set(obj.keys()) & FORBIDDEN_FIELD_NAMES
+        if forbidden:
+            raise ValueError(f"{name} contains forbidden fields: {sorted(forbidden)}")
+
+        for key, value in obj.items():
+            validate_no_forbidden_fields_deep(value, f"{name}.{key}")
+
+    elif isinstance(obj, list):
+        for index, value in enumerate(obj):
+            validate_no_forbidden_fields_deep(value, f"{name}[{index}]")
+
+
 def validate_path_or_null(value: object, field_name: str) -> None:
     if value is None:
         return
@@ -124,6 +138,7 @@ def validate_task_item(item: dict) -> None:
     require_object(item, "tasks.json item")
     validate_no_extra_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
     validate_no_forbidden_fields(item, "tasks.json item")
+    validate_no_forbidden_fields_deep(item, "tasks.json item")
     validate_required_fields(item, TASK_ITEM_BASE_REQUIRED_FIELDS, "tasks.json item")
 
     if "ui_mode" in item:
@@ -206,6 +221,9 @@ def validate_task_item(item: dict) -> None:
 def validate_tasks_json(tasks: list) -> None:
     require_array(tasks, "tasks.json")
 
+    if len(tasks) == 0:
+        raise ValueError("tasks.json 不得为空数组")
+
     seen = set()
 
     for item in tasks:
@@ -220,6 +238,7 @@ def validate_task_package_meta(meta: dict) -> None:
     require_object(meta, "task_package/meta.json")
     validate_no_extra_fields(meta, TASK_PACKAGE_META_FIELDS, "task_package/meta.json")
     validate_no_forbidden_fields(meta, "task_package/meta.json")
+    validate_no_forbidden_fields_deep(meta, "task_package/meta.json")
     validate_required_fields(meta, TASK_PACKAGE_META_REQUIRED_FIELDS, "task_package/meta.json")
 
     for field in [
@@ -244,6 +263,8 @@ def validate_task_package_meta(meta: dict) -> None:
 
     if meta["task_type"] not in TASK_TYPES:
         raise ValueError("task_package/meta.task_type invalid")
+
+    validate_task_id_format(meta["task_id"], meta["task_type"], "task_package/meta.task_id")
 
     if meta["schema_version"] != SCHEMA_VERSION:
         raise ValueError("task_package/meta.schema_version invalid")
@@ -277,6 +298,7 @@ def validate_result_item(item: dict) -> None:
     require_object(item, "results.json item")
     validate_no_extra_fields(item, RESULT_ITEM_FIELDS, "results.json item")
     validate_no_forbidden_fields(item, "results.json item")
+    validate_no_forbidden_fields_deep(item, "results.json item")
     validate_required_fields(item, RESULT_ITEM_REQUIRED_FIELDS, "results.json item")
 
     for field in ["sample_id", "case_id", "module", "operator", "timestamp", "task_id", "version", "schema_version"]:
@@ -284,6 +306,7 @@ def validate_result_item(item: dict) -> None:
 
     if item["module"] not in MODULES:
         raise ValueError("results.json.module invalid")
+        validate_task_id_format(item["task_id"], item["module"], "results.json.task_id")
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("results.json.schema_version invalid")
@@ -356,6 +379,7 @@ def validate_result_package_meta(meta: dict) -> None:
     require_object(meta, "result_package/meta.json")
     validate_no_extra_fields(meta, RESULT_PACKAGE_META_FIELDS, "result_package/meta.json")
     validate_no_forbidden_fields(meta, "result_package/meta.json")
+    validate_no_forbidden_fields_deep(meta, "result_package/meta.json")
     validate_required_fields(meta, RESULT_PACKAGE_META_REQUIRED_FIELDS, "result_package/meta.json")
 
     for field in [
@@ -382,6 +406,15 @@ def validate_result_package_meta(meta: dict) -> None:
 
     if meta["module"] != meta["task_type"]:
         raise ValueError("result_package/meta.module must equal task_type")
+
+    validate_task_id_format(meta["task_id"], meta["task_type"], "result_package/meta.task_id")
+
+    validate_result_package_id_format(
+        meta["result_package_id"],
+        meta["task_id"],
+        meta["operator"],
+        meta["export_version"],
+    )
 
     if meta["operator"] != meta["assigned_to"]:
         raise ValueError("result_package/meta.operator must equal assigned_to")
@@ -427,6 +460,7 @@ def validate_master_manifest(manifest: dict) -> None:
     require_object(manifest, "Master_Manifest.json")
     validate_no_extra_fields(manifest, MASTER_TOP_FIELDS, "Master_Manifest.json")
     validate_no_forbidden_fields(manifest, "Master_Manifest.json")
+    validate_no_forbidden_fields_deep(manifest, "Master_Manifest.json")
     validate_required_fields(manifest, MASTER_TOP_REQUIRED_FIELDS, "Master_Manifest.json")
 
     if manifest["manifest_version"] != MANIFEST_VERSION:
@@ -470,6 +504,8 @@ def validate_master_manifest(manifest: dict) -> None:
         if task["task_type"] not in TASK_TYPES:
             raise ValueError("Master task_type invalid")
 
+        validate_task_id_format(task["task_id"], task["task_type"], "Master task.task_id")
+
         if not isinstance(task["sample_count"], int) or task["sample_count"] <= 0:
             raise ValueError("Master sample_count must be positive int")
 
@@ -487,6 +523,14 @@ def validate_master_manifest(manifest: dict) -> None:
             if not is_relative_posix_path(task[path_field]):
                 raise ValueError(f"Master {path_field} must be relative POSIX path")
 
+        expected_upload_done_flag = task["distribution_path"] + ".UPLOAD_DONE.flag"
+
+        if task["upload_done_flag"] != expected_upload_done_flag:
+            raise ValueError(
+                f"Master upload_done_flag 必须绑定 distribution_path: "
+                f"actual={task['upload_done_flag']}, expected={expected_upload_done_flag}"
+            )
+
         require_bool(task["is_rework"], "Master.is_rework")
 
         if task["is_rework"]:
@@ -503,6 +547,7 @@ def validate_receive_registry(registry: dict) -> None:
     require_object(registry, "Receive_Registry.json")
     validate_no_extra_fields(registry, RECEIVE_TOP_FIELDS, "Receive_Registry.json")
     validate_no_forbidden_fields(registry, "Receive_Registry.json")
+    validate_no_forbidden_fields_deep(registry, "Receive_Registry.json")
     validate_required_fields(registry, RECEIVE_TOP_REQUIRED_FIELDS, "Receive_Registry.json")
 
     if registry["registry_version"] != REGISTRY_VERSION:
@@ -580,7 +625,7 @@ def validate_receive_registry(registry: dict) -> None:
 
         if record["result_pool_path"] is not None:
             require_string(record["result_pool_path"], "Receive.result_pool_path")
-            if not is_relative_posix_path(record["result_pool_path"]):
+            if not is_relative_posix_path(record["result_pool_path"], allow_trailing_slash=True):
                 raise ValueError("Receive.result_pool_path must be relative POSIX path")
 
         if record["moved_to_processed_at"] is not None:
@@ -1111,4 +1156,38 @@ def validate_receive_record_matches_result_package(receive_record: dict, result_
         raise ValueError(
             f"Receive duplicate_key 不符合冻结规则: "
             f"receive={receive_record['duplicate_key']}, expected={expected_duplicate_key}"
+        )
+
+_TASK_ID_PATTERNS = {
+    "segmentation": re.compile(r"^(SEG|REWORK_SEG)_\d{8}_\d{3}$"),
+    "detection": re.compile(r"^(DET|REWORK_DET)_\d{8}_\d{3}$"),
+    "caption": re.compile(r"^(CAP|REWORK_CAP)_\d{8}_\d{3}$"),
+}
+
+
+def validate_task_id_format(task_id: str, task_type: str, name: str = "task_id") -> None:
+    require_string(task_id, name)
+
+    if task_type not in TASK_TYPES:
+        raise ValueError(f"{name} 对应的 task_type 非法: {task_type}")
+
+    pattern = _TASK_ID_PATTERNS[task_type]
+
+    if not pattern.match(task_id):
+        raise ValueError(
+            f"{name} 命名不符合协议: task_id={task_id}, task_type={task_type}"
+        )
+
+
+def validate_result_package_id_format(result_package_id: str, task_id: str, operator: str, export_version: str) -> None:
+    require_string(result_package_id, "result_package_id")
+    require_string(task_id, "task_id")
+    require_string(operator, "operator")
+    require_string(export_version, "export_version")
+
+    expected = f"RESULT_{task_id}_{operator}_{export_version}"
+
+    if result_package_id != expected:
+        raise ValueError(
+            f"result_package_id 命名不符合协议: actual={result_package_id}, expected={expected}"
         )
