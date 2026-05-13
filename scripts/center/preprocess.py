@@ -355,7 +355,7 @@ def preprocess(config_path: str) -> None:
             resolution_level = classify_resolution(width, height)
             resolution_summary[resolution_level] += 1
 
-            generate_downsample_candidates(
+            downsample_paths = generate_downsample_candidates(
                 dst_image,
                 sample_id,
                 resolution_level,
@@ -363,16 +363,20 @@ def preprocess(config_path: str) -> None:
                 config.get("downsample", {}),
             )
 
+            rel_image = PurePosixPath("central_data_pool/images") / f"{sample_id}{image_ext}"
+            rel_mask = PurePosixPath("central_data_pool/masks") / f"{sample_id}.png"
+
             sample_record = {
                 "sample_id": sample_id,
                 "case_id": item["case_id"],
                 "check_category": item["check_category"],
                 "image_id": image_id,
-                "image_path": to_posix(dst_image),
-                "mask_path": to_posix(dst_mask),
+                "image_path": str(rel_image),
+                "mask_path": str(rel_mask),
                 "diagnosis_raw": item["diagnosis_raw"],
                 "resolution_level": resolution_level,
                 "schema_version": config["schema_version"],
+                "downsample": downsample_paths if downsample_paths else None,
             }
             samples_index.append(sample_record)
             cases_map[(item["case_id"], item["check_category"])].append(sample_id)
