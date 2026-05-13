@@ -290,6 +290,10 @@ FINAL_SEGMENTATION_FIELDS = {
     "polygons",
 }
 
+FINAL_SEGMENTATION_REQUIRED_FIELDS = {
+    "mask_path",
+}
+
 FINAL_DETECTION_FIELDS = {
     "boxes",
     "negative_confirmed",

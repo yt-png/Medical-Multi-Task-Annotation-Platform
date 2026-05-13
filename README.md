@@ -161,8 +161,6 @@ shared 是：
   - URL
   - Windows `\`
 
-实现见：:contentReference[oaicite:7]{index=7}  
-
 ---
 
 ### 4️⃣ hash_utils.py（哈希规则）

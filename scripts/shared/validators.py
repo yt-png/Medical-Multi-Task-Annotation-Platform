@@ -55,6 +55,7 @@ from .schemas import (
     FINAL_ITEM_FIELDS,
     FINAL_ITEM_REQUIRED_FIELDS,
     FINAL_SEGMENTATION_FIELDS,
+    FINAL_SEGMENTATION_REQUIRED_FIELDS,
     FINAL_DETECTION_FIELDS,
     FINAL_CAPTION_FIELDS,
     FINAL_SOURCE_FIELDS,
@@ -625,7 +626,13 @@ def validate_receive_registry(registry: dict) -> None:
                 raise ValueError("pending_validation result_pool_path must be null")
 
         elif validation_status == "validation_passed":
-            if import_status == "imported":
+            if import_status == "not_imported":
+                if record["failure_reason"] is not None:
+                    raise ValueError("validation_passed + not_imported failure_reason must be null")
+                if record["result_pool_path"] is not None:
+                    raise ValueError("validation_passed + not_imported result_pool_path must be null")
+
+            elif import_status == "imported":
                 if record["failure_reason"] is not None:
                     raise ValueError("imported Receive record failure_reason must be null")
                 require_string(record["result_pool_path"], "Receive.result_pool_path")
@@ -640,8 +647,14 @@ def validate_receive_registry(registry: dict) -> None:
                     raise ValueError("validation_passed + skipped should use invalid_count_gt_0")
                 if record["result_pool_path"] is not None:
                     raise ValueError("skipped Receive result_pool_path must be null")
+
+            elif import_status == "import_failed":
+                require_string(record["failure_reason"], "Receive.failure_reason")
+                if record["result_pool_path"] is not None:
+                    raise ValueError("import_failed Receive result_pool_path must be null")
+
             else:
-                raise ValueError("validation_passed must have import_status imported or skipped")
+                raise ValueError("validation_passed import_status invalid")
 
         elif validation_status == "validation_failed":
             if import_status != "skipped":
@@ -861,14 +874,15 @@ def validate_final_item(item: dict) -> None:
         require_object(item[obj_name], f"final.{obj_name}")
 
     validate_no_extra_fields(item["segmentation"], FINAL_SEGMENTATION_FIELDS, "final.segmentation")
-    validate_required_fields(item["segmentation"], FINAL_SEGMENTATION_FIELDS, "final.segmentation")
+    validate_required_fields(item["segmentation"], FINAL_SEGMENTATION_REQUIRED_FIELDS, "final.segmentation")
 
     require_string(item["segmentation"]["mask_path"], "final.segmentation.mask_path")
 
     if not is_relative_posix_path(item["segmentation"]["mask_path"]):
         raise ValueError("final.segmentation.mask_path must be relative POSIX path")
 
-    require_array(item["segmentation"]["polygons"], "final.segmentation.polygons")
+    if "polygons" in item["segmentation"]:
+        require_array(item["segmentation"]["polygons"], "final.segmentation.polygons")
 
     validate_no_extra_fields(item["detection"], FINAL_DETECTION_FIELDS, "final.detection")
     validate_required_fields(item["detection"], FINAL_DETECTION_FIELDS, "final.detection")
