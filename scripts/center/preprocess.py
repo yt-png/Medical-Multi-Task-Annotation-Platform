@@ -30,15 +30,6 @@ from scripts.shared.config_loader import load_config
 from scripts.shared.constants import PROJECT_ID, SCHEMA_VERSION
 from scripts.shared.id_utils import build_sample_id
 
-# 允许脚本从 project_root 运行：python scripts/center/preprocess.py ...
-# 也允许单文件调试时把 Day1 shared 文件放在同目录或 scripts/shared 中。
-try:
-    from scripts.shared.config_loader import load_config
-    from scripts.shared.constants import PROJECT_ID, SCHEMA_VERSION
-    from scripts.shared.id_utils import build_sample_id
-except Exception:  # pragma: no cover - 兼容单文件调试
-    import sys
-
     CURRENT = Path(__file__).resolve()
     for parent in [CURRENT.parent, *CURRENT.parents]:
         shared_dir = parent / "scripts" / "shared"
