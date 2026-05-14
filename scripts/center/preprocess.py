@@ -30,36 +30,6 @@ from scripts.shared.config_loader import load_config
 from scripts.shared.constants import PROJECT_ID, SCHEMA_VERSION
 from scripts.shared.id_utils import build_sample_id
 
-    CURRENT = Path(__file__).resolve()
-    for parent in [CURRENT.parent, *CURRENT.parents]:
-        shared_dir = parent / "scripts" / "shared"
-        if shared_dir.exists():
-            sys.path.insert(0, str(parent))
-            break
-    try:
-        from scripts.shared.config_loader import load_config
-        from scripts.shared.constants import PROJECT_ID, SCHEMA_VERSION
-        from scripts.shared.id_utils import build_sample_id
-    except Exception:
-        # 最小兜底：避免 Day2 预处理脚本因为 shared 包路径未配置而完全不可运行。
-        def load_config(path: str) -> Dict[str, Any]:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-
-        PROJECT_ID = "MED_IMG_V1"
-        SCHEMA_VERSION = "v1"
-
-        def build_sample_id(check_category: str, case_id: str, image_id: str, schema_version: str = "v1") -> str:
-            if schema_version != "v1":
-                raise ValueError("sample_id 仅支持 v1")
-            parts = [check_category.strip(), case_id.strip(), image_id.strip()]
-            if any(not p for p in parts):
-                raise ValueError("sample_id fields must be non-empty strings")
-            if any(("/" in p or "\\" in p) for p in parts):
-                raise ValueError("sample_id fields must not contain path separators")
-            return f"{parts[0]}_{parts[1]}_{parts[2]}"
-
-
 ALLOWED_IMAGE_EXTS = {".jpg", ".png"}
 MASK_EXT = ".png"
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
