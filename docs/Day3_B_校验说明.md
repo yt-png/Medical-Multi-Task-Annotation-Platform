@@ -11,7 +11,7 @@
 本次提交实现内容：
 
 * scripts/center/splitter.py
-* scripts/center/validate_day3.py
+* scripts/center/validators/validate_day3.py
 * 依赖 shared：
 
   * validators.py
@@ -95,7 +95,7 @@ center/task_packages/.tmp/
 ## 六、执行验收脚本
 
 ```bash
-python scripts/center/validate_day3.py
+python scripts/center/validators/validate_day3.py
 ```
 
 必须输出：
