@@ -26,6 +26,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from openpyxl import load_workbook
 from PIL import Image
 
+from scripts.shared.config_loader import load_config
+from scripts.shared.constants import PROJECT_ID, SCHEMA_VERSION
+from scripts.shared.id_utils import build_sample_id
+
 # 允许脚本从 project_root 运行：python scripts/center/preprocess.py ...
 # 也允许单文件调试时把 Day1 shared 文件放在同目录或 scripts/shared 中。
 try:
@@ -73,6 +77,26 @@ ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
 class PreprocessError(Exception):
     """预处理阶段可记录到 error_report.json 的错误。"""
 
+def reset_managed_output_dirs(central_data_pool: Path) -> None:
+    managed_dirs = [
+        central_data_pool / "images",
+        central_data_pool / "masks",
+        central_data_pool / "metadata",
+        central_data_pool / "downsample_candidates",
+    ]
+
+    for directory in managed_dirs:
+        if directory.exists():
+            shutil.rmtree(directory)
+
+    for directory in [
+        central_data_pool / "images",
+        central_data_pool / "masks",
+        central_data_pool / "metadata",
+        central_data_pool / "downsample_candidates" / "x2",
+        central_data_pool / "downsample_candidates" / "x4",
+    ]:
+        ensure_dir(directory)
 
 def now_iso() -> str:
     return datetime.now().strftime(ISO_FORMAT)
@@ -289,8 +313,8 @@ def preprocess(config_path: str) -> None:
     downsample_dir = central_data_pool / "downsample_candidates"
     log_dir = Path("logs") / "preprocess" / config["source_batch"]
 
-    for p in [images_dir, masks_dir, metadata_dir, downsample_dir / "x2", downsample_dir / "x4", log_dir]:
-        ensure_dir(p)
+    reset_managed_output_dirs(central_data_pool)
+    ensure_dir(log_dir)
 
     rows = read_excel_rows(excel_path, config["excel_columns"])
     image_index = index_files_by_stem(image_dir, ALLOWED_IMAGE_EXTS, "image")
@@ -374,8 +398,8 @@ def preprocess(config_path: str) -> None:
                 config.get("downsample", {}),
             )
 
-            rel_image = PurePosixPath("central_data_pool/images") / f"{sample_id}{image_ext}"
-            rel_mask = PurePosixPath("central_data_pool/masks") / f"{sample_id}.png"
+            rel_image = PurePosixPath(to_posix(dst_image))
+            rel_mask = PurePosixPath(to_posix(dst_mask))
 
             sample_record = {
                 "sample_id": sample_id,
@@ -468,7 +492,7 @@ def infer_error_code(message: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Day2 center preprocess.py")
-    parser.add_argument("--config", default="configs/preprocess_config.json", help="preprocess_config.json 路径")
+    parser.add_argument("--config", default="configs/project/preprocess_config.json", help="preprocess_config.json 路径")
     args = parser.parse_args()
     preprocess(args.config)
 
