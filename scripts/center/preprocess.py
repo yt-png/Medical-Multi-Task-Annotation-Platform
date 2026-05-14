@@ -144,15 +144,26 @@ def index_files_by_stem(directory: Path, allowed_exts: Iterable[str], kind: str)
     return result
 
 
-def classify_resolution(width: int, height: int) -> str:
+def classify_resolution(width: int, height: int, resolution_rules: Dict[str, Any]) -> str:
     short_edge = min(width, height)
     long_edge = max(width, height)
 
-    if short_edge <= 480 and long_edge <= 640:
+    s_rule = resolution_rules["S"]
+    if short_edge <= s_rule["short_edge_max"] and long_edge <= s_rule["long_edge_max"]:
         return "S"
-    if 481 <= short_edge <= 800 and 641 <= long_edge <= 1024:
+
+    m_rule = resolution_rules["M"]
+    if (
+        m_rule["short_edge_min"] <= short_edge <= m_rule["short_edge_max"]
+        and m_rule["long_edge_min"] <= long_edge <= m_rule["long_edge_max"]
+    ):
         return "M"
-    if short_edge > 800 and long_edge > 1024:
+
+    l_rule = resolution_rules["L"]
+    if (
+        short_edge > l_rule["short_edge_min_exclusive"]
+        and long_edge > l_rule["long_edge_min_exclusive"]
+    ):
         return "L"
 
     raise PreprocessError(
@@ -208,7 +219,7 @@ def generate_downsample_candidates(
             out_abs = central_data_pool / out_rel
             ensure_dir(out_abs.parent)
             resized.save(out_abs, format="JPEG", quality=95)
-            generated[scale] = to_posix(PurePosixPath(central_data_pool.as_posix()) / out_rel)
+            generated[scale] = to_posix(out_rel)
 
     return generated
 
@@ -352,10 +363,10 @@ def preprocess(config_path: str) -> None:
 
             width, height = copy_image_to_pool(src_image, dst_image)
             standardize_mask_to_png(src_mask, dst_mask)
-            resolution_level = classify_resolution(width, height)
+            resolution_level = classify_resolution(width, height, config["resolution_rules"])
             resolution_summary[resolution_level] += 1
 
-            generate_downsample_candidates(
+            downsample_paths = generate_downsample_candidates(
                 dst_image,
                 sample_id,
                 resolution_level,
@@ -363,16 +374,20 @@ def preprocess(config_path: str) -> None:
                 config.get("downsample", {}),
             )
 
+            rel_image = PurePosixPath("central_data_pool/images") / f"{sample_id}{image_ext}"
+            rel_mask = PurePosixPath("central_data_pool/masks") / f"{sample_id}.png"
+
             sample_record = {
                 "sample_id": sample_id,
                 "case_id": item["case_id"],
                 "check_category": item["check_category"],
                 "image_id": image_id,
-                "image_path": to_posix(dst_image),
-                "mask_path": to_posix(dst_mask),
+                "image_path": str(rel_image),
+                "mask_path": str(rel_mask),
                 "diagnosis_raw": item["diagnosis_raw"],
                 "resolution_level": resolution_level,
                 "schema_version": config["schema_version"],
+                "downsample": downsample_paths if downsample_paths else None,
             }
             samples_index.append(sample_record)
             cases_map[(item["case_id"], item["check_category"])].append(sample_id)
@@ -411,9 +426,9 @@ def preprocess(config_path: str) -> None:
         "config_version": config["config_version"],
         "script_version": config["script_version"],
         "created_at": now_iso(),
-        "input_excel": to_posix(excel_path),
-        "input_image_dir": to_posix(image_dir),
-        "input_mask_dir": to_posix(mask_dir),
+        "input_excel": config["input"]["excel_path"],
+        "input_image_dir": config["input"]["image_dir"],
+        "input_mask_dir": config["input"]["mask_dir"],
         "output_dir": to_posix(central_data_pool),
         "total_excel_rows": len(rows),
         "valid_samples": len(samples_index),

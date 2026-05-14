@@ -28,7 +28,6 @@ from .hash_utils import compute_sample_id_hash, compute_file_sha256
 from .schemas import (
     TASK_ITEM_FIELDS,
     TASK_ITEM_BASE_REQUIRED_FIELDS,
-    TASK_ITEM_REQUIRED_ALWAYS_PRESENT,
     TASK_PACKAGE_META_FIELDS,
     TASK_PACKAGE_META_REQUIRED_FIELDS,
     RESULT_ITEM_FIELDS,
