@@ -1066,7 +1066,7 @@ def validate_task_package_consistency(tasks: list, meta: dict) -> None:
 
         for item in tasks:
             require_string(item.get("mask"), "tasks.json.mask")
-            if not is_relative_posix_path(mask = item.get("mask")):
+            if not is_relative_posix_path(item.get("mask")):
                 raise ValueError("segmentation tasks.json.mask 必须是相对 POSIX 路径")
 
     if meta["task_type"] in {"detection", "caption"}:
