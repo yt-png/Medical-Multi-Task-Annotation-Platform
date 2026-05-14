@@ -35,10 +35,11 @@ def image_ext_from_path(image_path: str) -> str:
 
 def build_task_item(sample: dict, task_type: str, config: dict) -> dict:
     image_ext = image_ext_from_path(sample["image_path"])
-    image = f"images/{sample['sample_id']}{image_ext}"
+
+    image = f"images/{sample['image_id']}{image_ext}"
 
     if task_type == "segmentation":
-        mask = f"masks/{sample['sample_id']}.png"
+        mask = f"masks/{sample['image_id']}.png"
         prompt_version = None
         context_sources = None
     elif task_type == "detection":
@@ -48,7 +49,7 @@ def build_task_item(sample: dict, task_type: str, config: dict) -> dict:
     elif task_type == "caption":
         mask = None
         prompt_version = config["caption"]["prompt_version"]
-        context_sources = CONTEXT_SOURCES_CAPTION
+        context_sources = config["caption"]["context_sources"]
     else:
         raise ValueError(f"非法 task_type: {task_type}")
 
@@ -158,7 +159,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--samples",
-        default="tmp/day2_mock/center/central_data_pool/metadata/samples_index.json"
+        default="center/central_data_pool/metadata/samples_index.json"
     )
     parser.add_argument(
         "--output",

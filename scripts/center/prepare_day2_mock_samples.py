@@ -19,8 +19,8 @@ def main() -> None:
             "case_id": "8000595430_32327",
             "check_category": "电子胃肠镜",
             "image_id": "20240422093232291",
-            "image_path": "center/central_data_pool/images/电子胃肠镜_8000595430_32327_20240422093232291.jpg",
-            "mask_path": "center/central_data_pool/masks/电子胃肠镜_8000595430_32327_20240422093232291.png",
+            "image_path": "central_data_pool/images/电子胃肠镜_8000595430_32327_20240422093232291.jpg",
+            "mask_path": "central_data_pool/masks/电子胃肠镜_8000595430_32327_20240422093232291.png",
             "diagnosis_raw": "慢性浅表性胃炎伴胃窦糜烂",
             "resolution_level": "L",
             "schema_version": "v1"
@@ -30,8 +30,8 @@ def main() -> None:
             "case_id": "8000595430_32327",
             "check_category": "电子胃肠镜",
             "image_id": "20240422093312345",
-            "image_path": "center/central_data_pool/images/电子胃肠镜_8000595430_32327_20240422093312345.jpg",
-            "mask_path": "center/central_data_pool/masks/电子胃肠镜_8000595430_32327_20240422093312345.png",
+            "image_path": "central_data_pool/images/电子胃肠镜_8000595430_32327_20240422093312345.jpg",
+            "mask_path": "central_data_pool/masks/电子胃肠镜_8000595430_32327_20240422093312345.png",
             "diagnosis_raw": "慢性浅表性胃炎",
             "resolution_level": "M",
             "schema_version": "v1"

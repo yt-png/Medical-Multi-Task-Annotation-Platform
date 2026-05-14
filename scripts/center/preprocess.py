@@ -144,15 +144,26 @@ def index_files_by_stem(directory: Path, allowed_exts: Iterable[str], kind: str)
     return result
 
 
-def classify_resolution(width: int, height: int) -> str:
+def classify_resolution(width: int, height: int, resolution_rules: Dict[str, Any]) -> str:
     short_edge = min(width, height)
     long_edge = max(width, height)
 
-    if short_edge <= 480 and long_edge <= 640:
+    s_rule = resolution_rules["S"]
+    if short_edge <= s_rule["short_edge_max"] and long_edge <= s_rule["long_edge_max"]:
         return "S"
-    if 481 <= short_edge <= 800 and 641 <= long_edge <= 1024:
+
+    m_rule = resolution_rules["M"]
+    if (
+        m_rule["short_edge_min"] <= short_edge <= m_rule["short_edge_max"]
+        and m_rule["long_edge_min"] <= long_edge <= m_rule["long_edge_max"]
+    ):
         return "M"
-    if short_edge > 800 and long_edge > 1024:
+
+    l_rule = resolution_rules["L"]
+    if (
+        short_edge > l_rule["short_edge_min_exclusive"]
+        and long_edge > l_rule["long_edge_min_exclusive"]
+    ):
         return "L"
 
     raise PreprocessError(
@@ -352,7 +363,7 @@ def preprocess(config_path: str) -> None:
 
             width, height = copy_image_to_pool(src_image, dst_image)
             standardize_mask_to_png(src_mask, dst_mask)
-            resolution_level = classify_resolution(width, height)
+            resolution_level = classify_resolution(width, height, config["resolution_rules"])
             resolution_summary[resolution_level] += 1
 
             downsample_paths = generate_downsample_candidates(
@@ -415,9 +426,9 @@ def preprocess(config_path: str) -> None:
         "config_version": config["config_version"],
         "script_version": config["script_version"],
         "created_at": now_iso(),
-        "input_excel": to_posix(excel_path),
-        "input_image_dir": to_posix(image_dir),
-        "input_mask_dir": to_posix(mask_dir),
+        "input_excel": config["input"]["excel_path"],
+        "input_image_dir": config["input"]["image_dir"],
+        "input_mask_dir": config["input"]["mask_dir"],
         "output_dir": to_posix(central_data_pool),
         "total_excel_rows": len(rows),
         "valid_samples": len(samples_index),
