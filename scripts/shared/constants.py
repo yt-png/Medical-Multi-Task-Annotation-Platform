@@ -11,10 +11,6 @@ MODULES = {"segmentation", "detection", "caption"}
 
 RESOLUTION_LEVELS = {"S", "M", "L"}
 
-MASTER_CENTER_STATUS = {
-    "undistributed",
-    "distributed",
-}
 
 MASTER_CENTER_STATUS = {
     "undistributed",
