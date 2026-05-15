@@ -183,26 +183,17 @@ def validate_path_or_null(value: object, field_name: str) -> None:
 
 
 def validate_task_item(item: dict) -> None:
-    # 安全获取 optional 字段
-    prompt_version = item.get("prompt_version")
-    context_sources = item.get("context_sources")
-    ui_mode = item.get("ui_mode")
     require_object(item, "tasks.json item")
     validate_no_extra_fields(item, TASK_ITEM_FIELDS, "tasks.json item")
     validate_no_forbidden_fields_deep(item, "tasks.json item")
-    validate_required_fields(item, TASK_ITEM_BASE_REQUIRED_FIELDS, "tasks.json item")
 
-    image_path = item["image"]
-    image_id = item["image_id"]
+    required_fields = TASK_ITEM_BASE_REQUIRED_FIELDS | {
+        "mask",
+        "prompt_version",
+        "context_sources",
+    }
+    validate_required_fields(item, required_fields, "tasks.json item")
 
-    if "ui_mode" in item:
-        require_string(item["ui_mode"], "tasks.json.ui_mode")
-
-        if item["ui_mode"] not in TASK_TYPES:
-            raise ValueError("tasks.json.ui_mode invalid")
-
-        if item["ui_mode"] != item["task_type"]:
-            raise ValueError("tasks.json.ui_mode must equal task_type in V1")
     for field in [
         "sample_id",
         "case_id",
@@ -230,55 +221,56 @@ def validate_task_item(item: dict) -> None:
     require_string(item["image"], "tasks.json.image")
     if not is_relative_posix_path(item["image"]):
         raise ValueError("tasks.json.image must be relative POSIX path")
-    
+
     lower_image = item["image"].lower()
     if not (lower_image.endswith(".jpg") or lower_image.endswith(".png")):
         raise ValueError("tasks.json.image must be .jpg or .png in V1")
 
-    require_string(item["diagnosis_raw"], "tasks.json.diagnosis_raw")
+    diagnosis_raw = item["diagnosis_raw"]
+    if diagnosis_raw is not None:
+        require_string(diagnosis_raw, "tasks.json.diagnosis_raw")
 
     task_type = item["task_type"]
+    prompt_version = item["prompt_version"]
+    context_sources = item["context_sources"]
 
     if task_type == "segmentation":
-
-        mask = item.get("mask")
+        mask = item["mask"]
         require_string(mask, "tasks.json.mask")
 
         if not is_relative_posix_path(mask):
             raise ValueError("segmentation tasks.json.mask must be relative POSIX path")
 
-        lower_mask = mask.lower()
-        if not lower_mask.endswith(".png"):
+        if not mask.lower().endswith(".png"):
             raise ValueError("segmentation tasks.json.mask must be .png in V1")
 
         require_absent_or_null(prompt_version, "segmentation prompt_version")
         require_absent_or_null(context_sources, "segmentation context_sources")
 
     elif task_type == "detection":
-        if (mask := item.get("mask")) is not None:
+        if item["mask"] is not None:
             raise ValueError("detection mask must be null")
 
         require_absent_or_null(prompt_version, "detection prompt_version")
         require_absent_or_null(context_sources, "detection context_sources")
 
     elif task_type == "caption":
-        if (mask := item.get("mask")) is not None:
+        if item["mask"] is not None:
             raise ValueError("caption mask must be null")
 
-        require_string(item["diagnosis_raw"], "caption diagnosis_raw")
+        require_string(diagnosis_raw, "caption diagnosis_raw")
         require_string(prompt_version, "caption prompt_version")
 
-        context_sources = item.get("context_sources")
         if not isinstance(context_sources, list):
             raise ValueError("caption context_sources must be list")
-        
-        for source in item["context_sources"]:
-            require_string(source, "context_sources item")
 
-            if source not in CONTEXT_SOURCES_CAPTION:
-                raise ValueError(
-                    f"context_sources 非法: {source}, 只允许 {CONTEXT_SOURCES_CAPTION}"
-                )
+        if context_sources != CONTEXT_SOURCES_CAPTION:
+            raise ValueError(
+                f"caption context_sources 必须严格等于 {CONTEXT_SOURCES_CAPTION}"
+            )
+
+        for source in context_sources:
+            require_string(source, "context_sources item")
 
 def validate_sample_id_hash_consistency(tasks: list, expected_hash: str):
     computed = compute_sample_id_hash([item["sample_id"] for item in tasks])

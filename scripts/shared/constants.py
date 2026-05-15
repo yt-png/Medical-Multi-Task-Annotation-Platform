@@ -25,6 +25,11 @@ MASTER_CENTER_STATUS = {
     "reworking",
 }
 
+MASTER_RESULT_STATUS = {
+    "not_collected",
+    "collected",
+}
+
 RECEIVE_VALIDATION_STATUS = {
     "pending_validation",
     "validation_passed",

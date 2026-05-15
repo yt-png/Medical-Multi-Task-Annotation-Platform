@@ -36,7 +36,6 @@ TASK_ITEM_FIELDS = {
     "schema_version",
     "prompt_version",
     "context_sources",
-    "ui_mode",
 }
 
 TASK_ITEM_BASE_REQUIRED_FIELDS = {
@@ -173,7 +172,6 @@ TASK_PACKAGE_META_REQUIRED_FIELDS = TASK_PACKAGE_META_FIELDS
 TASK_ITEM_OPTIONAL_FIELDS = {
     "prompt_version",
     "context_sources",
-    "ui_mode",
 }
 
 # =========================
