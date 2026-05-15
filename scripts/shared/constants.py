@@ -14,6 +14,10 @@ RESOLUTION_LEVELS = {"S", "M", "L"}
 MASTER_CENTER_STATUS = {
     "undistributed",
     "distributed",
+    "merged",
+    "to_review",
+    "completed",
+    "reworking",
 }
 
 MASTER_RESULT_STATUS = {
