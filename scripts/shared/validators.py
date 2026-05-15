@@ -126,6 +126,27 @@ def validate_sample_id_case_id_consistency(sample_id: str, case_id: str) -> None
             f"sample_id 与 case_id 不一致: sample_id={sample_id}, case_id={case_id}"
         )
 
+def validate_sample_id_matches_task_fields(item: dict) -> None:
+    """
+    校验 tasks.json / final.json 中 sample_id 是否由：
+    {check_category}_{case_id}_{image_id}
+    正向生成。
+
+    注意：
+    - case_id 本身允许包含 "_"
+    - 不允许通过 split("_") 反解析 sample_id
+    """
+    for field in ["sample_id", "check_category", "case_id", "image_id"]:
+        require_string(item[field], field)
+
+    expected = f"{item['check_category']}_{item['case_id']}_{item['image_id']}"
+
+    if item["sample_id"] != expected:
+        raise ValueError(
+            "sample_id 与 check_category / case_id / image_id 不一致: "
+            f"actual={item['sample_id']}, expected={expected}"
+        )
+
 def validate_no_extra_fields(obj: dict, allowed_fields: set, name: str) -> None:
     extra = set(obj.keys()) - allowed_fields
     if extra:
@@ -195,6 +216,7 @@ def validate_task_item(item: dict) -> None:
 
     validate_sample_id_format(item["sample_id"])
     validate_sample_id_case_id_consistency(item["sample_id"], item["case_id"])
+    validate_sample_id_matches_task_fields(item)
 
     if item["task_type"] not in TASK_TYPES:
         raise ValueError("invalid task_type")
@@ -914,6 +936,7 @@ def validate_final_item(item: dict) -> None:
 
     validate_sample_id_format(item["sample_id"])
     validate_sample_id_case_id_consistency(item["sample_id"], item["case_id"])
+    validate_sample_id_matches_task_fields(item)
 
     if item["schema_version"] != SCHEMA_VERSION:
         raise ValueError("final schema_version invalid")

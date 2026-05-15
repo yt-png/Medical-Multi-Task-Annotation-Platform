@@ -16,9 +16,13 @@ MASTER_CENTER_STATUS = {
     "distributed",
 }
 
-MASTER_RESULT_STATUS = {
-    "not_collected",
-    "collected",
+MASTER_CENTER_STATUS = {
+    "undistributed",
+    "distributed",
+    "merged",
+    "to_review",
+    "completed",
+    "reworking",
 }
 
 RECEIVE_VALIDATION_STATUS = {
