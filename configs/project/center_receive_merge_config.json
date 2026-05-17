@@ -1,0 +1,21 @@
+{
+  "project_id": "MED_IMG_V1",
+  "schema_version": "v1",
+  "config_version": "v1.0",
+  "script_version": "v1.0",
+  "input": {
+    "collection_root": "Project_Sync/02_Collection",
+    "master_manifest": "center/manifests/Master_Manifest.json",
+    "receive_registry": "center/manifests/Receive_Registry.json"
+  },
+  "output": {
+    "received_packages": "center/received_packages",
+    "log_root": "center/logs/center"
+  },
+  "path_rules": {
+    "path_separator": "/",
+    "forbid_absolute_path": true,
+    "forbid_url": true,
+    "forbid_windows_backslash": true
+  }
+}
