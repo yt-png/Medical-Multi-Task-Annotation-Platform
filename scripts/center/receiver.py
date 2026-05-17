@@ -6,10 +6,10 @@ import json
 import os
 import re
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -67,6 +67,80 @@ def atomic_write_json(path: Path, data: Any) -> None:
     )
     os.replace(tmp, path)
 
+def append_jsonl(path: Path, event: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+def today_yyyymmdd() -> str:
+    return datetime.now().strftime("%Y%m%d")
+
+
+def make_log_id() -> str:
+    return f"LOG_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+
+def get_center_receive_log_root(config: Dict[str, Any]) -> Path:
+    if "output" in config and config["output"].get("log_root"):
+        return Path(config["output"]["log_root"])
+
+    return Path("center/logs/center")
+
+
+def log_receive_error(
+    config: Dict[str, Any],
+    zip_path: Path,
+    done_path: Path | None,
+    operator_dir_name: str,
+    exc: Exception,
+) -> None:
+    log_root = get_center_receive_log_root(config)
+    log_path = log_root / "receive" / f"central_receive_errors_{today_yyyymmdd()}.jsonl"
+
+    append_jsonl(
+        log_path,
+        {
+            "log_id": make_log_id(),
+            "log_version": "v1",
+            "timestamp": now_iso(),
+            "level": "ERROR",
+            "side": "center",
+            "event_type": "center_receive_scan_skipped",
+            "event_status": "skipped",
+            "project_id": PROJECT_ID,
+            "task_id": None,
+            "task_type": None,
+            "sample_id": None,
+            "case_id": None,
+            "operator": operator_dir_name,
+            "assigned_to": None,
+            "script_name": "scripts/center/receiver.py",
+            "script_version": None,
+            "schema_version": "v1",
+            "config_version": None,
+            "correlation_id": None,
+            "message": str(exc),
+            "details": {
+                "zip_path": to_posix(zip_path),
+                "done_path": to_posix(done_path) if done_path else None,
+                "operator_dir_name": operator_dir_name,
+            },
+            "related_files": [
+                to_posix(zip_path),
+                to_posix(done_path) if done_path else None,
+            ],
+            "error": {
+                "error_code": "CENTER_RECEIVE_SCAN_SKIPPED",
+                "error_message": str(exc),
+                "error_location": "scripts.center.receiver",
+                "affected_scope": "package",
+                "can_continue": True,
+                "suggested_action": "检查结果包命名、.done 文件名、Submitted 上级目录 operator 是否一致。",
+                "raw_exception": exc.__class__.__name__,
+            },
+        },
+    )
 
 def load_config_with_fallback(config_path: str) -> Dict[str, Any]:
     candidates = [
@@ -244,12 +318,55 @@ def existing_receive_keys(registry: Dict[str, Any]) -> set:
     return keys
 
 
+def existing_duplicate_keys(registry: Dict[str, Any]) -> set:
+    keys = set()
+
+    for record in registry.get("records", []):
+        if not isinstance(record, dict):
+            continue
+
+        duplicate_key = record.get("duplicate_key")
+        if duplicate_key:
+            keys.add(duplicate_key)
+
+    return keys
+
+def read_result_meta_from_zip(zip_path: Path) -> Dict[str, Any]:
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        member = "result_package/meta.json"
+        if member not in zf.namelist():
+            raise CenterReceiveError(f"结果包缺少 {member}: {zip_path}")
+        meta = json.loads(zf.read(member).decode("utf-8"))
+
+    required = {
+        "result_package_id",
+        "task_id",
+        "task_type",
+        "module",
+        "operator",
+        "export_version",
+        "sample_count",
+        "completed_count",
+        "invalid_count",
+        "invalid_sample_ids",
+        "sample_id_hash",
+        "results_json_hash",
+        "schema_version",
+    }
+
+    missing = required - set(meta.keys())
+    if missing:
+        raise CenterReceiveError(f"result_package/meta.json 缺少字段: {sorted(missing)}")
+
+    return meta
+
 def build_receive_record(
     zip_path: Path,
     done_path: Path,
     info: Dict[str, str],
 ) -> Dict[str, Any]:
     received_at = now_iso()
+    result_meta = read_result_meta_from_zip(zip_path)
 
     result_package_id = info["result_package_id"]
     task_id = info["task_id"]
@@ -257,6 +374,17 @@ def build_receive_record(
     module = info["module"]
     operator = info["operator"]
     export_version = info["export_version"]
+
+    for key, expected in {
+        "result_package_id": result_package_id,
+        "task_id": task_id,
+        "task_type": task_type,
+        "module": module,
+        "operator": operator,
+        "export_version": export_version,
+    }.items():
+        if result_meta[key] != expected:
+            raise CenterReceiveError(f"{key} 与 ZIP 文件名/推断结果不一致")
 
     return {
         "receive_id": make_receive_id(result_package_id, received_at),
@@ -268,19 +396,22 @@ def build_receive_record(
         "module": module,
         "operator": operator,
         "received_at": received_at,
-
         "validation_status": "pending_validation",
         "import_status": "not_imported",
-
         "failure_reason": None,
         "failure_detail": None,
         "processed_path": None,
         "result_pool_path": None,
         "duplicate_key": f"{task_id}|{operator}|{export_version}",
         "moved_to_processed_at": None,
-
+        "sample_count": result_meta["sample_count"],
+        "completed_count": result_meta["completed_count"],
+        "invalid_count": result_meta["invalid_count"],
+        "invalid_sample_ids": result_meta["invalid_sample_ids"],
+        "sample_id_hash": result_meta["sample_id_hash"],
+        "results_json_hash": result_meta["results_json_hash"],
         "export_version": export_version,
-        "schema_version": "v1",
+        "schema_version": result_meta["schema_version"],
     }
 
 
@@ -369,6 +500,7 @@ def receive_packages(config_path: str, dry_run: bool = False) -> None:
 
         except Exception as exc:
             failed += 1
+            log_receive_error(config, zip_path, done_path, operator_dir_name, exc)
             print(f"[WARN] 跳过非法结果包: {zip_path}")
             print(f"[WARN] 原因: {exc}")
 

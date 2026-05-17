@@ -339,10 +339,6 @@ def write_validation_report(
     meta: Dict[str, Any],
     config: Dict[str, Any],
 ) -> None:
-    """
-    Day6 mock 版 validation_report。
-    Day14 本地轻校验接入后，可以由 local_validator.py 生成真实报告。
-    """
     report = {
         "task_id": task_meta["task_id"],
         "task_type": task_meta["task_type"],
@@ -359,8 +355,8 @@ def write_validation_report(
         "script_version": config["script_version"],
     }
 
+    # 只写本地工作区，不写入 result_package ZIP
     atomic_write_json(task_dir / "working" / "validation_report.json", report)
-    atomic_write_json(staging_result_package_dir / "validation_report.json", report)
 
 
 def build_result_meta(
