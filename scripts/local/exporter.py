@@ -5,6 +5,8 @@ import json
 import os
 import shutil
 import sys
+import zipfile
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -528,6 +530,124 @@ def done_path_for_zip(zip_path: Path) -> Path:
     return Path(str(zip_path)[:-4] + ".done")
 
 
+def _validate_zip_member_path_for_day8(member: str) -> None:
+    if not isinstance(member, str) or member == "":
+        raise ValueError("ZIP 内路径不能为空")
+
+    if "\\" in member:
+        raise ValueError(f"ZIP 内路径禁止 Windows 反斜杠: {member}")
+
+    if member.startswith("/"):
+        raise ValueError(f"ZIP 内路径禁止绝对路径: {member}")
+
+    if "://" in member:
+        raise ValueError(f"ZIP 内路径禁止 URL: {member}")
+
+    if "//" in member:
+        raise ValueError(f"ZIP 内路径禁止连续斜杠: {member}")
+
+    if re.match(r"^[A-Za-z]:", member):
+        raise ValueError(f"ZIP 内路径禁止 Windows 盘符: {member}")
+
+    parts = member.rstrip("/").split("/")
+    if "." in parts or ".." in parts:
+        raise ValueError(f"ZIP 内路径禁止 . 或 ..: {member}")
+
+
+def assert_day8_export_contract(
+    zip_path: Path,
+    result_package_id_value: str,
+    task_meta: Dict[str, Any],
+) -> None:
+    """
+    Day8 B 本地导出契约校验。
+
+    目的：
+    - 在 .done 生成前，提前发现会被 A 的 Day8 receiver.py 拒收的问题；
+    - 不写中心文件；
+    - 不替代中心回收校验；
+    - 只保证本地 exporter 输出的 ZIP/meta/results 基础结构与中心 Day8 要求一致。
+    """
+    if not zip_path.exists() or not zip_path.is_file():
+        raise FileNotFoundError(f"result_package.zip 不存在: {zip_path}")
+
+    if zip_path.stat().st_size <= 0:
+        raise ValueError(f"result_package.zip 为空: {zip_path}")
+
+    expected_zip_name = f"{result_package_id_value}.zip"
+    if zip_path.name != expected_zip_name:
+        raise ValueError(
+            f"result_package.zip 文件名与 result_package_id 不一致: "
+            f"actual={zip_path.name}, expected={expected_zip_name}"
+        )
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        bad = zf.testzip()
+        if bad is not None:
+            raise ValueError(f"result_package.zip 损坏: {bad}")
+
+        names = zf.namelist()
+        if not names:
+            raise ValueError("result_package.zip 内容为空")
+
+        for name in names:
+            _validate_zip_member_path_for_day8(name)
+
+        file_names = {name for name in names if not name.endswith("/")}
+
+        for name in file_names:
+            if not name.startswith("result_package/"):
+                raise ValueError(f"ZIP 根目录必须为 result_package/: {name}")
+
+        if "result_package/meta.json" not in file_names:
+            raise ValueError("result_package.zip 缺少 result_package/meta.json")
+
+        if "result_package/results.json" not in file_names:
+            raise ValueError("result_package.zip 缺少 result_package/results.json")
+
+        meta = json.loads(zf.read("result_package/meta.json").decode("utf-8"))
+        results = json.loads(zf.read("result_package/results.json").decode("utf-8"))
+
+    if not isinstance(meta, dict):
+        raise ValueError("result_package/meta.json 顶层必须是 object")
+
+    if not isinstance(results, list):
+        raise ValueError("result_package/results.json 顶层必须是 array")
+
+    task_id = task_meta["task_id"]
+    task_type = task_meta["task_type"]
+
+    expected_meta = {
+        "result_package_id": result_package_id_value,
+        "task_id": task_id,
+        "task_type": task_type,
+        "module": task_type,
+    }
+
+    for field, expected in expected_meta.items():
+        actual = meta.get(field)
+        if actual != expected:
+            raise ValueError(
+                f"Day8 导出契约失败: meta.{field} 不一致，"
+                f"actual={actual}, expected={expected}"
+            )
+
+    if meta.get("module") != meta.get("task_type"):
+        raise ValueError("Day8 导出契约失败: meta.module 必须等于 meta.task_type")
+
+    task_prefix_map = {
+        "segmentation": ("SEG_", "REWORK_SEG_"),
+        "detection": ("DET_", "REWORK_DET_"),
+        "caption": ("CAP_", "REWORK_CAP_"),
+    }
+
+    if not task_id.startswith(task_prefix_map[task_type]):
+        raise ValueError(
+            f"Day8 导出契约失败: task_id 前缀与 task_type 不匹配，"
+            f"task_id={task_id}, task_type={task_type}"
+        )
+
+
 def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -> Dict[str, str]:
     if force:
         raise ValueError(
@@ -605,6 +725,7 @@ def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -
         raise ValueError(f"生成的本地 result_package.zip 不完整或损坏: {local_zip}")
 
     assert_result_package_zip_structure(str(local_zip), module=task_meta["task_type"])
+    assert_day8_export_contract(local_zip, package_id, task_meta)
 
     # 先同步本地工作区，再发布到 Submitted。
     # 如果这里失败，Submitted 中还不会出现正式 ZIP。
@@ -629,6 +750,7 @@ def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -
             raise ValueError(f"Submitted 正式 ZIP 不完整或损坏: {output_zip}")
 
         assert_result_package_zip_structure(str(output_zip), module=task_meta["task_type"])
+        assert_day8_export_contract(output_zip, package_id, task_meta)
 
         # .done 必须最后生成。
         atomic_write_text(
