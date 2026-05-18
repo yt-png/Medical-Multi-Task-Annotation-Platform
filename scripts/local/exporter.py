@@ -15,6 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.local.validators.day10_export_contract import assert_day10_export_contract
+
 from scripts.shared.config_loader import load_config
 from scripts.shared.constants import (
     PROJECT_ID,
@@ -724,6 +726,19 @@ def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -
     if not zip_exists_and_valid(str(local_zip)):
         raise ValueError(f"生成的本地 result_package.zip 不完整或损坏: {local_zip}")
 
+    # Day10 预校验：此时只校验本地生成的 result_package.zip 内容。
+    # Submitted 正式 ZIP 和 .done 还没有发布，因此这里不能要求 .done。
+    assert_day10_export_contract(
+        zip_path=local_zip,
+        task_package_dir=task_dir / "task_package",
+        require_done=False,
+    )
+    
+    assert_day10_export_contract(
+        zip_path=output_zip,
+        task_package_dir=task_dir / "task_package",
+    )
+
     assert_result_package_zip_structure(str(local_zip), module=task_meta["task_type"])
     assert_day8_export_contract(local_zip, package_id, task_meta)
 
@@ -781,6 +796,14 @@ def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -
             output_zip.unlink(missing_ok=True)
 
         raise
+
+    # Day10 完整验收：Submitted 中正式 ZIP + .done 已经原子发布完成。
+    assert_day10_export_contract(
+        zip_path=output_zip,
+        task_package_dir=task_dir / "task_package",
+        done_path=output_done,
+        require_done=True,
+    )
 
     shutil.copy2(output_done, local_result_root / output_done.name)
 
