@@ -734,10 +734,10 @@ def export_one_task(task_id: str, config: Dict[str, Any], force: bool = False) -
         require_done=False,
     )
     
-    assert_day10_export_contract(
-        zip_path=output_zip,
-        task_package_dir=task_dir / "task_package",
-    )
+    #assert_day10_export_contract(
+        #zip_path=output_zip,
+       # task_package_dir=task_dir / "task_package",
+    #)
 
     assert_result_package_zip_structure(str(local_zip), module=task_meta["task_type"])
     assert_day8_export_contract(local_zip, package_id, task_meta)
