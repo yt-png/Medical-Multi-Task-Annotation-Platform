@@ -1,0 +1,38 @@
+{
+  "project_id": "MED_IMG_V1",
+  "schema_version": "v1",
+  "config_version": "v1.0",
+  "script_version": "v1.0",
+  "input": {
+    "collection_root": "Project_Sync/02_Collection",
+    "master_manifest": "center/manifests/Master_Manifest.json",
+    "receive_registry": "center/manifests/Receive_Registry.json",
+    "central_data_pool": "center/central_data_pool",
+    "task_package_dir": "center/task_packages"
+  },
+  "output": {
+    "central_result_pool": "center/central_result_pool",
+    "received_packages": "center/received_packages",
+    "log_root": "center/logs/center"
+  },
+  "merge": {
+    "one_file_per_sample": true,
+    "merged_dir": "center/central_result_pool/merged",
+    "review_queue_dir": "center/central_result_pool/review_queue",
+    "merge_error_report": "center/central_result_pool/merged/merge_error_report.json"
+  },
+  "duplicate_policy": {
+    "allow_overwrite": false,
+    "duplicate_key": "task_id|operator|export_version"
+  },
+  "status_policy": {
+    "max_center_status": "to_review",
+    "forbid_completed_update": true
+  },
+  "path_rules": {
+    "path_separator": "/",
+    "forbid_absolute_path": true,
+    "forbid_url": true,
+    "forbid_windows_backslash": true
+  }
+}

@@ -24,11 +24,14 @@ ZIP 工具（Day1 最终冻结版）
 5. 目录项不是业务依据，业务校验以关键文件和关键目录内容为准
 """
 
+import json
 import os
 import re
 import shutil
 import zipfile
 from typing import Iterable, List
+
+from .hash_utils import compute_sample_id_hash
 
 
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
@@ -153,7 +156,12 @@ def create_zip(source_dir: str, output_zip_path: str, include_root_dir: bool = T
                 full_path = os.path.join(root, file_name)
                 rel_path = os.path.relpath(full_path, base_dir).replace("\\", "/")
                 _validate_zip_member_path(rel_path)
-                zf.write(full_path, rel_path)
+
+                info = zipfile.ZipInfo(rel_path)
+                info.flag_bits |= 0x800  # UTF-8 filename flag
+
+                with open(full_path, "rb") as f:
+                    zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED)
 
     if not zip_exists_and_valid(tmp_zip_path):
         if os.path.exists(tmp_zip_path):
@@ -276,6 +284,37 @@ def assert_zip_has_file_under_dir(zip_path: str, required_dir: str) -> None:
     raise ValueError(f"ZIP 目录下缺少文件: {required_dir}")
 
 
+def assert_task_package_json_hash_consistency(zip_path: str) -> None:
+    """
+    校验 task_package.zip 内部：
+    tasks.json 与 meta.json 的 sample_id_hash 是否一致。
+    """
+    if not zip_exists_and_valid(zip_path):
+        raise ValueError(f"ZIP 不存在或损坏: {zip_path}")
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        try:
+            tasks = json.loads(zf.read("task_package/tasks.json").decode("utf-8"))
+            meta = json.loads(zf.read("task_package/meta.json").decode("utf-8"))
+        except KeyError as exc:
+            raise ValueError(f"ZIP 缺少必要 JSON 文件: {exc}")
+
+    if not isinstance(tasks, list) or not tasks:
+        raise ValueError("task_package/tasks.json 顶层必须是非空数组")
+
+    if not isinstance(meta, dict):
+        raise ValueError("task_package/meta.json 顶层必须是 object")
+
+    sample_ids = [item["sample_id"] for item in tasks]
+    computed_hash = compute_sample_id_hash(sample_ids)
+
+    if meta.get("sample_id_hash") != computed_hash:
+        raise ValueError(
+            "task_package.zip 内 sample_id_hash 不一致: "
+            f"meta={meta.get('sample_id_hash')}, computed={computed_hash}"
+        )
+
+
 def assert_task_package_zip_structure(zip_path: str, task_type: str | None = None) -> None:
     """
     校验 task_package.zip 的真实内部结构。
@@ -326,6 +365,8 @@ def assert_task_package_zip_structure(zip_path: str, task_type: str | None = Non
 
     else:
         raise ValueError(f"非法 task_type: {task_type}")
+
+    assert_task_package_json_hash_consistency(zip_path)
 
 
 def assert_result_package_zip_structure(zip_path: str, module: str | None = None) -> None:

@@ -1,0 +1,53 @@
+{
+  "project_id": "MED_IMG_V1",
+  "distribution_batch": "20260425_AM",
+  "schema_version": "v1",
+  "config_version": "v1.0",
+  "script_version": "v1.0",
+  "created_by": "Central_Admin",
+  "updated_at": "2026-04-25T10:00:00",
+  "input": {
+    "central_data_pool": "center/central_data_pool",
+    "samples_index": "center/central_data_pool/metadata/samples_index.json",
+    "preprocess_manifest": "center/central_data_pool/metadata/preprocess_manifest.json"
+  },
+  "output": {
+    "task_package_dir": "center/task_packages",
+    "distribution_root": "Project_Sync/01_Distribution"
+  },
+  "task_types": [
+    "segmentation",
+    "detection",
+    "caption"
+  ],
+  "chunk_size": {
+    "segmentation": 100,
+    "detection": 100,
+    "caption": 100
+  },
+  "assigned_to": {
+    "segmentation": ["张三"],
+    "detection": ["李四"],
+    "caption": ["王五"]
+  },
+  "task_id_rule": {
+    "segmentation": "SEG_{YYYYMMDD}_{seq}",
+    "detection": "DET_{YYYYMMDD}_{seq}",
+    "caption": "CAP_{YYYYMMDD}_{seq}"
+  },
+  "package_naming": {
+    "zip_name": "{task_id}_{task_type}_{assigned_to}.zip",
+    "upload_done_flag": "{zip_name}.UPLOAD_DONE.flag"
+  },
+  "caption": {
+    "prompt_version": "caption_prompt_v1",
+    "context_sources": ["image", "diagnosis_raw"]
+  },
+  "path_rules": {
+    "path_separator": "/",
+    "forbid_absolute_path": true,
+    "forbid_url": true,
+    "forbid_windows_backslash": true,
+    "task_package_internal_paths_only": true
+  }
+}

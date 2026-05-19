@@ -1,0 +1,46 @@
+{
+  "project_id": "MED_IMG_V1",
+  "operator": "李四",
+  "schema_version": "v1",
+  "config_version": "v1.0",
+  "script_version": "v1.0",
+  "export_version": "v1",
+  "updated_at": "2026-04-25T10:00:00",
+  "sync": {
+    "distribution_root": "Project_Sync/01_Distribution",
+    "collection_root": "Project_Sync/02_Collection"
+  },
+  "local": {
+    "workspace_root": "local/local_workspace",
+    "task_root": "local/local_workspace/tasks",
+    "draft_root": "local/local_workspace/drafts",
+    "log_root": "local/local_workspace/logs",
+    "tmp_root": "local/local_workspace/tmp"
+  },
+  "local_api": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8765
+  },
+  "label_studio": {
+    "enabled": true,
+    "url": "http://127.0.0.1:8080",
+    "project_prefix": "MED_IMG_V1",
+    "import_mode": "per_task_package"
+  },
+  "path_rules": {
+    "path_separator": "/",
+    "forbid_absolute_path": true,
+    "forbid_url": true,
+    "forbid_windows_backslash": true,
+    "workspace_internal_paths_only": true
+  },
+  "caption": {
+    "enable_generation": true,
+    "require_human_review": true
+  },
+  "export": {
+    "default_export_mode": "strict",
+    "allow_with_invalid_report": true
+  }
+}

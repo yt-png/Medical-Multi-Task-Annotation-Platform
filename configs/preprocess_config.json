@@ -1,0 +1,62 @@
+{
+  "project_id": "MED_IMG_V1",
+  "source_batch": "RAW_20260425_001",
+  "schema_version": "v1",
+  "config_version": "v1.0",
+  "script_version": "v1.0",
+  "updated_at": "2026-04-25T10:00:00",
+  "input": {
+    "excel_path": "center/raw_input/selected_patients.xlsx",
+    "image_dir": "center/raw_input/images",
+    "mask_dir": "center/raw_input/masks"
+  },
+  "output": {
+    "central_data_pool": "center/central_data_pool"
+  },
+  "excel_columns": {
+    "check_category": "检查分类",
+    "case_id": "检查HIS号",
+    "image_filename": "图片文件名",
+    "diagnosis_raw": "检查提示"
+  },
+  "sample_id": {
+    "rule": "{check_category}_{case_id}_{image_id}",
+    "normalize_check_category": true,
+    "strip_case_id": true,
+    "image_id_from_basename": true,
+    "forbid_empty_parts": true
+  },
+  "resolution_rules": {
+    "S": {
+      "short_edge_max": 480,
+      "long_edge_max": 640
+    },
+    "M": {
+      "short_edge_min": 481,
+      "short_edge_max": 800,
+      "long_edge_min": 641,
+      "long_edge_max": 1024
+    },
+    "L": {
+      "short_edge_min_exclusive": 800,
+      "long_edge_min_exclusive": 1024
+    }
+  },
+  "downsample": {
+    "algorithm": "bicubic",
+    "antialias": true,
+    "scales": ["x2", "x4"],
+    "generate_for": {
+      "S": [],
+      "M": ["x2"],
+      "L": ["x2", "x4"]
+    }
+  },
+  "path_rules": {
+    "allow_chinese_path": true,
+    "path_separator": "/",
+    "forbid_absolute_path": true,
+    "forbid_url": true,
+    "forbid_windows_backslash": true
+  }
+}
