@@ -39,8 +39,11 @@ project_root/
 │   │       ├── DET_20260425_001/
 │   │       └── CAP_20260425_001/
 │   └── label_studio/
-│       ├── exports/
-│       └── scripts/
+│       ├── configs/
+│       ├── converted_results/
+|       ├── exports/
+|       ├── import_payloads/
+|       └── scripts/
 ├── scripts/
 │   └── local/
 │       ├── label_studio_adapter.py
@@ -51,11 +54,11 @@ project_root/
 
 ### 3. 必须包含以下文件（来自 B 的交付）
 
-* label_studio_adapter.py
-* exporter.py
-* run_ls_export_to_results.py
-* run_image_server.py
-* label_config.xml
+* scripts\local\label_studio_adapter.py
+* scripts\local\exporter.py
+* local\label_studio\scripts\run_ls_export_to_results.py
+* scripts\local\run_image_server.py
+* local\label_studio\configs\label_config.xml
 
 ---
 
@@ -81,7 +84,7 @@ python scripts/local/run_image_server.py
 ```bash
 python scripts/local/label_studio_adapter.py tasks-to-ls 
 --task-dir local/local_workspace/tasks/SEG_20260425_001 
---out local/label_studio/exports/SEG_import.json
+--out local/label_studio/import_payloads/SEG_20260425_001_import_payload.json
 ```
 
 成功标志：
@@ -109,14 +112,15 @@ http://localhost:8080
 
 2. Labeling Config：
 
-粘贴 label_config.xml 内容
+粘贴 local\label_studio\configs\label_config.xml 内容
 
 3. 导入数据：
 
 Import → Upload Files
 上传：
-
-local/label_studio/exports/SEG_import.json
+```bash
+local/label_studio/import_payloads/SEG_20260425_001_import_payload.json
+```
 
 成功标志：
 
@@ -170,7 +174,7 @@ Export → JSON
 
 保存为：
 ```bash
-local/label_studio/exports/SEG_export.json
+local\label_studio\exports\SEG_20260425_001_export.json
 ```
 
 ---
@@ -181,7 +185,7 @@ local/label_studio/exports/SEG_export.json
 ```bash
 python local/label_studio/scripts/run_ls_export_to_results.py 
 --task-id SEG_20260425_001 
---export-name SEG_export.json
+--export-name SEG_20260425_001_export.json
 ```
 
 成功标志：
