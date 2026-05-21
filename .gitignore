@@ -106,8 +106,11 @@ venv/
 ############################################
 local/label_studio/exports/**
 local/label_studio/imports/**
+local/label_studio/import_payloads/**
 local/label_studio/data/**
 local/label_studio/tmp/**
+
+!local/label_studio/import_payloads/.gitkeep
 
 local/userscript/tmp/**
 local/local_api/tmp/**

@@ -1,0 +1,44 @@
+<View>
+  <Header value="多任务医学图像标注平台 - Day13 标注页"/>
+
+  <Text name="task_info" value="任务ID：$task_id"/>
+  <Text name="sample_info" value="样本ID：$sample_id"/>
+  <Text name="module_info" value="当前模块：$module"/>
+  <Text name="case_info" value="病例ID：$case_id"/>
+  <Text name="resolution_info" value="分辨率档位：$resolution_level"/>
+
+  <Header value="检查提示"/>
+  <Text name="diagnosis_info" value="$diagnosis_raw"/>
+
+  <Header value="图像标注区"/>
+  <Image name="image" value="$image"/>
+
+  <Header value="SEG 分割任务区"/>
+  <Text name="seg_instruction" value="已有 mask 的样本请选择“已有 mask 可沿用”；无 mask 的样本使用 Polygon 标注病灶区域。"/>
+
+  <Choices name="seg_input_mask_status" toName="image" choice="single" required="false">
+    <Choice value="已有 mask 可沿用，无需手动画病灶"/>
+  </Choices>
+
+  <PolygonLabels name="segmentation_polygon" toName="image">
+    <Label value="lesion" alias="病灶区域 Polygon"/>
+  </PolygonLabels>
+
+  <Header value="DET 检测任务区"/>
+  <Text name="det_instruction" value="仅 detection 任务使用本区域。系统会尽量基于已有 mask 生成候选框，操作员需要确认、微调或删除候选框；明确无病灶时只选择阴性确认。不要同时保留框又选择阴性确认。"/>
+
+  <RectangleLabels name="detection_box" toName="image">
+    <Label value="lesion" alias="病灶框"/>
+  </RectangleLabels>
+
+  <Choices name="negative_confirmed" toName="image" choice="single" required="false">
+    <Choice value="negative_confirmed" alias="阴性确认：图中无可标注病灶"/>
+  </Choices>
+
+  <Header value="CAP Caption 任务区"/>
+  <Text name="cap_instruction" value="仅 caption 任务使用本区域。generated 保存模型生成文本，reviewed 保存人工修订后的最终文本，prompt_version 填 caption_prompt_v1。"/>
+
+  <TextArea name="generated" toName="image" editable="true" required="false" rows="4" placeholder="LLM 自动生成 caption"/>
+  <TextArea name="reviewed" toName="image" editable="true" required="false" rows="5" placeholder="人工修订后的最终 caption"/>
+  <TextArea name="prompt_version" toName="image" editable="true" required="false" rows="1" placeholder="caption_prompt_v1"/>
+</View>
